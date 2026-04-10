@@ -771,6 +771,7 @@ const KotPage = () => {
                id: "ORD_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
                type: orderType,
                tableId: orderType === 'DI' ? selectedTable.id : null,
+               parentTableId: orderType === 'DI' ? (selectedTable.id.toString().split('-')[0]) : null,
                waiterId: selectedWaiter?.id || null,
                customerId: selectedCustomer?.id || null,
                deliveryAgentId: deliveryAgent?.id || null,

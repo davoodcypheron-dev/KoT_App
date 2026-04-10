@@ -73,11 +73,95 @@ const TablesPage = () => {
     }
   }, [config.defaultKotType, navigate]);
 
+  const getNextVirtualId = (tableId) => {
+    const baseId = tableId.toString().split('-')[0];
+    const siblings = liveOrders
+      .filter(o => o.tableId.toString() === baseId || o.tableId.toString().startsWith(`${baseId}-`))
+      .map(o => o.tableId.toString());
+
+    let maxSerial = 0;
+    siblings.forEach(sid => {
+      if (sid.includes('-')) {
+        const serial = parseInt(sid.split('-')[1]);
+        if (!isNaN(serial) && serial > maxSerial) maxSerial = serial;
+      }
+    });
+
+    return `${baseId}-${maxSerial + 1}`;
+  };
+
+  const displayTables = React.useMemo(() => {
+    let allTables = [...tablesDb];
+
+    // Identify virtual tables from live orders (e.g. "5-1", "5-2")
+    liveOrders.forEach(order => {
+      const tId = order.tableId?.toString();
+      if (tId && !tablesDb.find(t => t.id.toString() === tId)) {
+        const baseId = tId.split('-')[0];
+        const parentTable = tablesDb.find(t => t.id.toString() === baseId);
+        if (parentTable) {
+          allTables.push({
+            ...parentTable,
+            id: tId,
+            isVirtual: true,
+            parentId: baseId
+          });
+        }
+      }
+    });
+
+    // Custom sort to keep virtual tables with their parents
+    return allTables.sort((a, b) => {
+      const aIdStr = a.id.toString();
+      const bIdStr = b.id.toString();
+      const aBase = aIdStr.split('-')[0];
+      const bBase = bIdStr.split('-')[0];
+
+      if (aBase !== bBase) {
+        // Find original indices in tablesDb for floor-based/original order
+        const aOrigIdx = tablesDb.findIndex(t => t.id.toString() === aBase);
+        const bOrigIdx = tablesDb.findIndex(t => t.id.toString() === bBase);
+        return aOrigIdx - bOrigIdx;
+      }
+
+      // Within same base group, sort by serial
+      return aIdStr.localeCompare(bIdStr, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }, [liveOrders]);
+
   const floors = floorsDb;
 
-  const handleTableClick = async (table) => {
+  const handleTableClick = async (table, isView = false) => {
     // Check against real IDB orders mapping to this table
     const activeOrder = liveOrders.find(o => o.tableId === table.id);
+
+    // If it's a tile click (not View button) on an occupied table, create a virtual table
+    if (!isView && (table.status === 'running' || table.status === 'billed')) {
+      const nextId = getNextVirtualId(table.id);
+      const virtualTable = { ...table, id: nextId, status: 'vacant', isVirtual: true, parentId: table.id.toString().split('-')[0] };
+      
+      // Proceed with virtual table as if it's a new vacant table
+      let currentWaiter = selectedWaiter;
+      if (!currentWaiter) {
+        const currentUser = usersDb.find(u => u.id === config.activeUserId);
+        if (currentUser?.waiterId) {
+          const mappedWaiter = waitersDb.find(w => w.id === currentUser.waiterId);
+          if (mappedWaiter) {
+            setSelectedWaiter(mappedWaiter);
+            currentWaiter = mappedWaiter;
+          }
+        }
+      }
+
+      if (!currentWaiter) {
+        notify('Please select a waiter to continue', 'error');
+        return;
+      }
+
+      setShowPaxModal(virtualTable);
+      setPaxInput('');
+      return;
+    }
 
     if (table.status === 'vacant') {
       let currentWaiter = selectedWaiter;
@@ -99,8 +183,6 @@ const TablesPage = () => {
         notify('Please select a waiter to continue', 'error');
         return;
       }
-
-      console.log(config.paxMandatory)
 
       if (!config.paxMandatory) {
         await setSelectedTable(table, 1, null);
@@ -172,7 +254,7 @@ const TablesPage = () => {
                   <div className="flex-1 h-[1px] bg-blue-100" />
                 </div>
                 <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9 gap-3">
-                  {tablesDb.filter(t => t.floor === floor.id).map(table => {
+                  {displayTables.filter(t => t.floor === floor.id).map(table => {
 
 
                     const getTimeDifference = (startTime) => {
@@ -214,6 +296,7 @@ const TablesPage = () => {
                         onClick={() => {
                           if (tableStatus === 'vacant') { handleTableClick({ ...table, status: tableStatus, amount: tableAmount }) }
                           else if (tableStatus === 'reserved') { setShowReservationModal(booking) }
+                          else if (tableStatus === 'running' || tableStatus === 'billed') { handleTableClick({ ...table, status: tableStatus, amount: tableAmount }, false) }
                         }}
                         className={`group aspect-square rounded-2xl border shadow-sm flex flex-col relative overflow-hidden transition-all touch-btn active:scale-90 cursor-pointer ${tableStatus === 'vacant' ? 'bg-white border-slate-200 hover:border-blue-300' :
                           tableStatus === 'running' ? 'bg-[#fde68a] border-yellow-500' :
@@ -252,7 +335,7 @@ const TablesPage = () => {
                             </div>
                             <div className="flex h-11 border-t border-yellow-500/30 overflow-hidden shrink-0">
                               <button
-                                onClick={(e) => { e.stopPropagation(); handleTableClick({ ...table, status: tableStatus, amount: tableAmount }); }}
+                                onClick={(e) => { e.stopPropagation(); handleTableClick({ ...table, status: tableStatus, amount: tableAmount }, true); }}
                                 className="flex-1 bg-white/40 hover:bg-white/60 flex items-center justify-center text-yellow-900 border-r border-yellow-500/30 transition-colors"
                               >
                                 <Eye size={16} strokeWidth={3} />
