@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Item Sold Out Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #fcf5d5;
+        }
+
+        .touch-btn:active {
+            transform: scale(0.96);
+        }
+
+        input[type=number]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body class="p-2 select-none h-screen flex flex-col">
+
+    <div class="bg-white rounded-xl shadow-sm p-3 mb-3 flex items-center gap-3">
+        <button onclick="window.history.back()"
+            class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center touch-btn">
+            <i data-lucide="arrow-left" class="w-5 h-5 text-slate-600"></i>
+        </button>
+        <h1 class="font-black text-slate-800 text-lg mr-4 whitespace-nowrap">Item Sold Out</h1>
+
+        <div class="flex-1 relative">
+            <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-slate-400"></i>
+            <input type="text" id="itemSearch" placeholder="Search item to add..." oninput="handleSearch(this.value)"
+                class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+
+            <div id="searchDropdown"
+                class="hidden absolute top-12 left-0 right-0 bg-white border border-slate-200 shadow-2xl rounded-xl z-[150] max-h-60 overflow-y-auto custom-scrollbar">
+            </div>
+        </div>
+
+        <div class="flex gap-2">
+            <button onclick="resetAllItems()"
+                class="h-10 bg-yellow-500 text-white px-4 rounded-lg font-bold flex items-center gap-2 touch-btn text-sm shadow-lg shadow-yellow-100">
+                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reset All
+            </button>
+        </div>
+    </div>
+
+    <div id="itemGrid"
+        class="flex-1 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 content-start overflow-y-auto pb-20">
+    </div>
+
+    <div id="stockModal" class="fixed inset-0 z-[200] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeStockModal()"></div>
+        <div
+            class="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden flex animate-in zoom-in duration-200">
+
+            <div class="flex-1 p-8 flex flex-col justify-between">
+                <div>
+                    <h3 id="modalItemName" class="text-xl font-black text-slate-800 leading-tight">Item Name</h3>
+                    <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Available Qty</p>
+                </div>
+
+                <div class="bg-slate-50 border-2 border-slate-100 rounded-2xl p-6">
+                    <input type="number" id="stockInput" readonly
+                        class="w-full bg-transparent text-center text-5xl font-black text-blue-600 outline-none"
+                        placeholder="0">
+                </div>
+
+                <div class="flex gap-2 mt-2">
+                    <button onclick="closeStockModal()"
+                        class="flex-1 py-4 font-bold text-slate-400 rounded-xl hover:bg-slate-50">Cancel</button>
+                    <button onclick="applyStockChange()"
+                        class="flex-[2] py-4 bg-[#1e56a0] text-white font-black rounded-xl shadow-lg touch-btn">Update</button>
+                </div>
+            </div>
+
+            <div class="w-56 bg-slate-50 p-4 border-l border-slate-100 grid grid-cols-3 gap-2" id="numpad-container">
+            </div>
+        </div>
+    </div>
+
+    <div id="statusToast" class="fixed bottom-6 right-6 z-[300] hidden animate-in slide-in-from-bottom-5">
+        <div id="toastBg" class="bg-slate-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3">
+            <i id="toastIcon" data-lucide="info"></i>
+            <span id="toastMsg" class="font-black text-xs uppercase tracking-widest"></span>
+        </div>
+    </div>
+
+    <div id="confirmActionModal" class="fixed inset-0 z-[200] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+        <div
+            class="relative bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-8 text-center animate-in zoom-in duration-150">
+            <div id="confirm-icon-bg"
+                class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 bg-blue-100 text-blue-600">
+                <i data-lucide="help-circle" class="w-10 h-10"></i>
+            </div>
+            <h3 id="confirm-title" class="text-xl font-black text-slate-800 mb-2">Are you sure?</h3>
+            <p id="confirm-text" class="text-slate-500 text-sm mb-8">This action cannot be undone.</p>
+            <div class="flex gap-3">
+                <button onclick="closeConfirmAction()"
+                    class="flex-1 py-4 bg-slate-100 text-slate-500 font-bold rounded-2xl touch-btn">Cancel</button>
+                <button id="confirm-yes-btn"
+                    class="flex-1 py-4 bg-blue-600 text-white font-black rounded-2xl shadow-lg touch-btn">Yes,
+                    OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // Master Database
+        let masterMenu = [
+            { id: 1, name: "Chicken Biriyani", family: "Main Course" },
+            { id: 2, name: "Beef Roast", family: "Main Course" },
+            { id: 3, name: "Lime Soda", family: "Drinks" },
+            { id: 4, name: "Veg Fried Rice", family: "Main Course" },
+            { id: 5, name: "Chocolate Shake", family: "Drinks" },
+            { id: 6, name: "Chicken 65", family: "Starters" },
+            { id: 7, name: "Porotta", family: "Main Course" },
+            { id: 8, name: "Fish Curry", family: "Main Course" },
+            { id: 9, name: "Appam", family: "Main Course" },
+            { id: 10, name: "Ghee Roast", family: "Main Course" }
+        ];
+
+        // Track only items that are Sold Out or have limited stock
+        let soldOutTracking = [
+            { id: 2, name: "Beef Roast", stock: 0, isSoldOut: true },
+            { id: 5, name: "Chocolate Shake", stock: 0, isSoldOut: true }
+        ];
+
+        let activeEditingItem = null;
+
+        function showConfirmAction(text, onConfirm) {
+            const modal = document.getElementById('confirmActionModal');
+            document.getElementById('confirm-text').innerText = text;
+            modal.classList.remove('hidden');
+            document.getElementById('confirm-yes-btn').onclick = () => { modal.classList.add('hidden'); onConfirm(); };
+        }
+
+        function closeConfirmAction() { document.getElementById('confirmActionModal').classList.add('hidden'); }
+
+        function renderItems() {
+            const grid = document.getElementById('itemGrid');
+            grid.innerHTML = '';
+
+            if (soldOutTracking.length === 0) {
+                grid.innerHTML = `<div class="col-span-full h-64 flex flex-col items-center justify-center text-slate-400 opacity-60">
+                    <i data-lucide="package-open" class="w-12 h-12 mb-2"></i>
+                    <p class="font-bold">No items marked as Sold Out</p>
+                </div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            soldOutTracking.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `${item.isSoldOut ? 'bg-red-50 border-red-200' : 'bg-sky-100 border-sky-200'} aspect-video rounded-xl border-2 shadow-sm flex flex-col p-3 relative touch-btn cursor-pointer transition-all`;
+                card.innerHTML = `
+                    <div class="absolute top-2 right-2"><i data-lucide="${item.isSoldOut ? 'ban' : 'check-circle'}" class="w-4 h-4 ${item.isSoldOut ? 'text-red-500' : 'text-sky-500'}"></i></div>
+                    <div class="flex-1 flex flex-col justify-center">
+                        <h4 class="font-black text-xs text-slate-800 leading-tight pr-4">${item.name}</h4>
+                    </div>
+                    <div class="mt-2 flex justify-between items-end border-t ${item.isSoldOut ? 'border-red-100' : 'border-sky-200'} pt-2">
+                        <span class="text-[10px] font-black ${item.isSoldOut ? 'text-red-600' : 'text-slate-500'} uppercase">${item.isSoldOut ? 'Sold Out' : 'Limited'}</span>
+                        <div class="${item.isSoldOut ? 'bg-red-500' : 'bg-sky-500'} text-white px-2 py-0.5 rounded text-[10px] font-black">Qty: ${item.stock}</div>
+                    </div>`;
+                card.onclick = () => openStockModal(item);
+                grid.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function handleSearch(query) {
+            const dropdown = document.getElementById('searchDropdown');
+            if (query.length < 1) { dropdown.classList.add('hidden'); return; }
+
+            const filtered = masterMenu.filter(m => m.name.toLowerCase().includes(query.toLowerCase()));
+
+            if (filtered.length > 0) {
+                dropdown.innerHTML = '';
+                filtered.forEach(m => {
+                    const row = document.createElement('div');
+                    row.className = "px-4 py-3 border-b border-slate-50 hover:bg-slate-50 active:bg-blue-50 font-bold text-sm text-slate-700 flex justify-between items-center cursor-pointer";
+                    row.innerHTML = `<span>${m.name}</span> <i data-lucide="plus" class="w-4 h-4 text-slate-300"></i>`;
+                    row.onclick = () => {
+                        dropdown.classList.add('hidden');
+                        document.getElementById('itemSearch').value = '';
+                        openStockModal(m);
+                    };
+                    dropdown.appendChild(row);
+                });
+                dropdown.classList.remove('hidden');
+                lucide.createIcons();
+            } else { dropdown.classList.add('hidden'); }
+        }
+
+        function openStockModal(item) {
+            activeEditingItem = item;
+            document.getElementById('modalItemName').innerText = item.name;
+            const existing = soldOutTracking.find(i => i.id === item.id);
+            document.getElementById('stockInput').value = existing ? existing.stock : '';
+            document.getElementById('stockModal').classList.remove('hidden');
+        }
+
+        function closeStockModal() { document.getElementById('stockModal').classList.add('hidden'); }
+
+        // Touch Numpad Rendering
+        const numpad = document.getElementById('numpad-container');
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 0, '<', 'C'].forEach(key => {
+            const btn = document.createElement('button');
+            btn.className = "h-14 bg-white border border-slate-200 rounded-xl font-black text-xl text-slate-700 active:bg-blue-100 flex items-center justify-center touch-btn";
+            if (key === '<') btn.innerHTML = '<i data-lucide="delete"></i>';
+            else if (key === 'C') btn.innerText = 'C';
+            else btn.innerText = key;
+
+            btn.onclick = () => {
+                const input = document.getElementById('stockInput');
+                if (key === 'C') input.value = '';
+                else if (key === '<') input.value = input.value.slice(0, -1);
+                else { if (input.value.length < 3) input.value += key; }
+            };
+            numpad.appendChild(btn);
+        });
+
+        
+
+        function applyStockChange() {
+            const inputVal = document.getElementById('stockInput').value;
+            const newStock = inputVal === '' ? 0 : parseInt(inputVal);
+
+            // Confirmation logic
+            const confirmMsg = newStock === 0 ? "Mark as Sold Out?" : `Set stock to ${newStock}?`;
+            showConfirmAction(confirmMsg, () => {
+                updateStock(newStock);
+            });
+            
+        }
+
+        function updateStock(newStock){
+            const existingIdx = soldOutTracking.findIndex(i => i.id === activeEditingItem.id);
+            const data = {
+                id: activeEditingItem.id,
+                name: activeEditingItem.name,
+                stock: newStock,
+                isSoldOut: (newStock === 0)
+            };
+
+            if (existingIdx > -1) soldOutTracking[existingIdx] = data;
+            else soldOutTracking.push(data);
+
+            closeStockModal();
+            renderItems();
+            showToast(`${data.name} updated`, data.isSoldOut ? "error" : "success");
+        }
+
+        function resetAllItems() {
+            if (confirm("Mark all items as available?")) {
+                soldOutTracking = [];
+                renderItems();
+                showToast("All items reset", "success");
+            }
+        }
+
+        function showToast(msg, type) {
+            let color = "bg-slate-800";
+            let iconName = "info"; // Default icon
+
+            switch (type) {
+                case "success":
+                    color = "bg-emerald-500";
+                    iconName = "check-circle";
+                    break;
+                case "error":
+                    color = "bg-red-500";
+                    iconName = "alert-circle";
+                    break;
+                case "warning":
+                    color = "bg-orange-500";
+                    iconName = "alert-triangle";
+                    break;
+                case "info":
+                    color = "bg-blue-500";
+                    iconName = "info";
+                    break;
+            }
+
+            const toast = document.createElement('div');
+            // Added 'right-10' for positioning and 'flex' for icon alignment
+            toast.className = `fixed bottom-10 right-10 ${color} text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl animate-in fade-in slide-in-from-bottom-5 duration-300 z-[300] flex items-center gap-3`;
+
+            // Create the icon and text structure
+            toast.innerHTML = `
+        <div class="bg-white/20 p-1.5 rounded-lg">
+            <i data-lucide="${iconName}" class="w-5 h-5 text-white"></i>
+        </div>
+        <span>${msg}</span>
+    `;
+
+            document.body.appendChild(toast);
+
+            // Initialize the icon for the new element
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.classList.add('animate-out', 'fade-out', 'slide-out-to-bottom-5');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#itemSearch') && !e.target.closest('#searchDropdown')) {
+                document.getElementById('searchDropdown').classList.add('hidden');
+            }
+        });
+
+        renderItems();
+    </script>
+</body>
+
+</html>

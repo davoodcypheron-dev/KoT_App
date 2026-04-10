@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    @apply select-none h-screen overflow-hidden;
+  }
+}
+
+@layer components {
+  .touch-btn:active {
+    @apply scale-95 brightness-90 transition-all duration-75;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 0.5cm; /* Touch friendly width */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-slate-50;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 rounded-[0.25cm] border-[0.1cm] border-solid border-slate-50;
+  }
+
+  .custom-scrollbar-visible::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .custom-scrollbar-visible::-webkit-scrollbar-track {
+    @apply bg-slate-100/50 rounded-full;
+  }
+
+  .custom-scrollbar-visible::-webkit-scrollbar-thumb {
+    @apply bg-blue-200 hover:bg-blue-300 rounded-full transition-colors;
+  }
+
+  .ar-font {
+    font-family: 'Noto Sans Arabic', sans-serif;
+  }
+
+  /* Fixed animations */
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .animate-spin-slow {
+    animation: spin-slow 3s linear infinite;
+  }
+}
+
+/* Base styles for the project */
+:root {
+  --background-alt: #fdf2f2;
+  --table-vacant: #ffffff;
+  --table-running: #fde68a;
+  --table-saved: #bbf7d0;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}

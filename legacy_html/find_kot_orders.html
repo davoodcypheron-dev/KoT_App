@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Find Orders | POS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #fcf5d5; }
+        .touch-btn:active { transform: scale(0.96); }
+        
+        /* Status Colors to match your image */
+        .status-running { background-color: #fde68a !important; } /* Yellow */
+        .status-saved { background-color: #bbf7d0 !important; }   /* Green */
+        .status-settled { background-color: #bfdbfe !important; } /* Blue */
+        .status-merged { background-color: #fecaca !important; }  /* Pink/Peach */
+        .status-cancelled { background-color: #f87171 !important; color: white !important; } /* Red */
+        
+        .tab-active { background-color: #1e56a0 !important; color: white !important; }
+    </style>
+</head>
+<body class="p-2 select-none h-screen flex flex-col">
+
+    <div class="bg-white rounded-xl shadow-sm p-3 mb-2 flex flex-col gap-3">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <button onclick="window.history.back()" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center touch-btn">
+                    <i data-lucide="arrow-left" class="w-5 h-5 text-slate-600"></i>
+                </button>
+                <h1 class="font-black text-slate-800 text-lg">Orders List</h1>
+            </div>
+            <div class="flex gap-4 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-[#fde68a]"></span> Running</div>
+                <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-[#bbf7d0]"></span> Saved</div>
+                <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-[#bfdbfe]"></span> Settled</div>
+                <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-[#fecaca]"></span> Merged</div>
+                <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-[#f87171]"></span> Cancelled</div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <div class="flex bg-slate-100 p-1 rounded-xl flex-1 max-w-2xl overflow-x-auto hide-scrollbar">
+                <button onclick="filterByStatus('All')" class="tab-btn tab-active flex-1 py-2 px-4 rounded-lg text-xs font-black whitespace-nowrap transition-all uppercase">All Orders</button>
+                <button onclick="filterByStatus('Dine In')" class="tab-btn flex-1 py-2 px-4 rounded-lg text-xs font-bold whitespace-nowrap transition-all uppercase">Dine In</button>
+                <button onclick="filterByStatus('Take Away')" class="tab-btn flex-1 py-2 px-4 rounded-lg text-xs font-bold whitespace-nowrap transition-all uppercase">Take Away</button>
+                <button onclick="filterByStatus('Delivery')" class="tab-btn flex-1 py-2 px-4 rounded-lg text-xs font-bold whitespace-nowrap transition-all uppercase">Delivery</button>
+                <button onclick="filterByStatus('Bill Generated')" class="tab-btn flex-1 py-2 px-4 rounded-lg text-xs font-bold whitespace-nowrap transition-all uppercase">Bill Generated</button>
+                <button onclick="filterByStatus('Cancelled')" class="tab-btn flex-1 py-2 px-4 rounded-lg text-xs font-bold whitespace-nowrap transition-all uppercase text-red-500">Cancelled</button>
+            </div>
+
+            <div class="relative w-64">
+                <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-slate-400"></i>
+                <input type="text" id="orderSearch" placeholder="Search Invoice/Table..." oninput="handleSearch()"
+                    class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
+            <button onclick="openDeliverySummary()" class="bg-emerald-600 text-white h-10 px-4 rounded-xl font-black text-xs uppercase flex items-center gap-2 touch-btn shadow-lg shadow-emerald-100">
+                <i data-lucide="truck" class="w-4 h-4"></i> Delivery Summary
+            </button>
+        </div>
+    </div>
+
+    <div class="flex-1 bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200 flex flex-col">
+        <div class="overflow-x-auto flex-1">
+            <table class="w-full text-left border-collapse table-auto">
+                <thead class="sticky top-0 z-20">
+                    <tr class="bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest">
+                        <th class="px-3 py-4 border-r border-slate-600 text-center">KOT No</th>
+                        <th class="px-3 py-4 border-r border-slate-600">Date & Time</th>
+                        <th class="px-3 py-4 border-r border-slate-600">Type</th>
+                        <th class="px-3 py-4 border-r border-slate-600">Invoice</th>
+                        <th class="px-3 py-4 border-r border-slate-600">Floor/Table</th>
+                        <th class="px-3 py-4 border-r border-slate-600">Customer</th>
+                        <th class="px-3 py-4 border-r border-slate-600 text-right">Total</th>
+                        <th class="px-3 py-4 border-r border-slate-600 text-center">Re-Print KoT</th>
+                        <th class="px-3 py-4 border-r border-slate-600 text-center">Re-Print</th>
+                        <th class="px-3 py-4 border-r border-slate-600 text-center">Select</th>
+                        <th class="px-3 py-4 text-center">Settle</th>
+                    </tr>
+                </thead>
+                <tbody id="orderTableBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="settleModal" class="fixed inset-0 z-[115] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-700/20 backdrop-blur-md" onclick="closeSettleModal()"></div>
+        <div
+            class="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+
+            <div class="bg-slate-50 p-6 border-b border-slate-100">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 id="settleTitle" class="text-xl font-black text-slate-800">Settlement: T1</h3>
+                </div>
+                <div class="grid grid-cols-2 gap-4 relative">
+                    <div class="space-y-1 relative">
+                        <label class="text-[9px] font-black text-slate-400 uppercase">Customer Name</label>
+                        <input type="text" id="custNameInput" placeholder="Start typing name..."
+                            oninput="filterCustomers(this.value, 'name')"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div class="space-y-1 relative">
+                        <label class="text-[9px] font-black text-slate-400 uppercase">Mobile Number</label>
+                        <input type="text" id="custMobileInput" placeholder="9876543210"
+                            oninput="filterCustomers(this.value, 'mobile')"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div id="customerSuggestions"
+                        class="hidden absolute top-[52px] left-0 right-0 z-[200] bg-white border border-slate-200 shadow-2xl rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                        <div
+                            class="bg-slate-100 px-4 py-2 border-b border-slate-200 grid grid-cols-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                            <span>Name</span>
+                            <span>Mobile</span>
+                        </div>
+                        <div id="suggestionBody">
+                        </div>
+                    </div>
+
+                    <div class="col-span-2 space-y-1">
+                        <label class="text-[9px] font-black text-slate-400 uppercase">Address</label>
+                        <textarea id="custAddressInput"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 h-16 resize-none"
+                            placeholder="Type address"></textarea>
+                    </div>
+                    <div class="col-span-2 space-y-1">
+                        <label class="text-[9px] font-black text-slate-400 uppercase">Reg. Number</label>
+                        <input type="text" id="custRegInput"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 h-10"
+                            value="">
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 grid grid-cols-3 gap-3">
+                <button onclick="handleQuickSettle('Cash')"
+                    class="h-20 bg-emerald-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-emerald-100 touch-btn">
+                    <i data-lucide="banknote" class="w-6 h-6"></i>
+                    <span class="text-xs font-black uppercase">Cash</span>
+                </button>
+                <button onclick="handleQuickSettle('Card')"
+                    class="h-20 bg-blue-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-blue-100 touch-btn">
+                    <i data-lucide="credit-card" class="w-6 h-6"></i>
+                    <span class="text-xs font-black uppercase">Card</span>
+                </button>
+                <button onclick="handleQuickSettle('UPI')"
+                    class="h-20 bg-blue-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-purple-100 touch-btn">
+                    <i data-lucide="smartphone" class="w-6 h-6"></i>
+                    <span class="text-xs font-black uppercase">UPI</span>
+                </button>
+                <button onclick="openCreditPopup()"
+                    class="h-20 bg-blue-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-orange-100 touch-btn">
+                    <i data-lucide="book-open" class="w-6 h-6"></i>
+                    <span class="text-xs font-black uppercase">Credit</span>
+                </button>
+                <button onclick="openMultiMode()"
+                    class="h-20 bg-blue-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-slate-200 touch-btn">
+                    <i data-lucide="layers" class="w-6 h-6"></i>
+                    <span class="text-xs font-black uppercase">Other</span>
+                </button>
+                <button onclick="handleQuickSettle('Complimentary')"
+                    class="h-20 bg-pink-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-pink-100 touch-btn">
+                    <i data-lucide="gift" class="w-6 h-6"></i>
+                    <span class="text-xs font-black uppercase">Compliment</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="creditModal" class="fixed inset-0 z-[130] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-700/20 backdrop-blur-sm" onclick="closeCreditPopup()"></div>
+        <div class="relative bg-white w-full max-w-xs rounded-3xl shadow-2xl p-6 animate-in zoom-in duration-150">
+            <h4 class="text-center font-black text-slate-800 mb-4">Select Settlement Ledger</h4>
+            <select id="ledgerSelect"
+                class="w-full h-14 bg-slate-50 border-2 border-slate-100 rounded-xl px-4 font-bold text-slate-700 outline-none focus:border-blue-500 mb-6">
+                <option value="Staff Account">Staff Account</option>
+                <option value="VIP - Corporate">VIP - Corporate</option>
+                <option value="Director's Ledger">Director's Ledger</option>
+                <option value="External Vendor">External Vendor</option>
+            </select>
+            <button onclick="confirmCreditSettle()"
+                class="w-full py-4 bg-blue-500 text-white font-black rounded-xl touch-btn uppercase text-sm">Settle to
+                Ledger</button>
+        </div>
+    </div>
+
+    <div id="multiModeModal" class="fixed inset-0 z-[130] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onclick="closeMultiMode()"></div>
+        <div
+            class="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="credit-card" class="text-indigo-600 w-5 h-5"></i>
+                    <h4 class="font-black text-lg text-slate-800 tracking-tight">Multi-Payment Settlement</h4>
+                </div>
+                <button onclick="closeMultiMode()"
+                    class="w-8 h-8 bg-red-50 text-red-500 rounded-full flex items-center justify-center touch-btn">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-5 space-y-4">
+                <div class="grid grid-cols-4 gap-2">
+                    <button onclick="openPartialPay('Cash')"
+                        class="h-16 bg-sky-400 text-white rounded-xl flex flex-col items-center justify-center shadow-md touch-btn border-b-2 border-sky-600">
+                        <i data-lucide="banknote" class="w-4 h-4"></i>
+                        <span class="text-[10px] font-black uppercase mt-1">Cash</span>
+                    </button>
+                    <button onclick="openPartialPay('Card')"
+                        class="h-16 bg-sky-400 text-white rounded-xl flex flex-col items-center justify-center shadow-md touch-btn border-b-2 border-sky-600">
+                        <i data-lucide="credit-card" class="w-4 h-4"></i>
+                        <span class="text-[10px] font-black uppercase mt-1">Card</span>
+                    </button>
+                    <button onclick="openPartialPay('UPI')"
+                        class="h-16 bg-sky-400 text-white rounded-xl flex flex-col items-center justify-center shadow-md touch-btn border-b-2 border-sky-600">
+                        <i data-lucide="smartphone" class="w-4 h-4"></i>
+                        <span class="text-[10px] font-black uppercase mt-1">UPI</span>
+                    </button>
+                    <button onclick="openPartialPay('Credit')"
+                        class="h-16 bg-sky-400 text-white rounded-xl flex flex-col items-center justify-center shadow-md touch-btn border-b-2 border-sky-600">
+                        <i data-lucide="book-open" class="w-4 h-4"></i>
+                        <span class="text-[10px] font-black uppercase mt-1">Credit</span>
+                    </button>
+                    <button onclick="openPartialPay('Bank')"
+                        class="h-16 bg-sky-400 text-white rounded-xl flex flex-col items-center justify-center shadow-md touch-btn border-b-2 border-sky-600">
+                        <i data-lucide="landmark" class="w-4 h-4"></i>
+                        <span class="text-[10px] font-black uppercase mt-1">Bank</span>
+                    </button>
+                    <button onclick="openPartialPay('Coupon')"
+                        class="h-16 bg-sky-400 text-white rounded-xl flex flex-col items-center justify-center shadow-md touch-btn border-b-2 border-sky-600">
+                        <i data-lucide="ticket" class="w-4 h-4"></i>
+                        <span class="text-[10px] font-black uppercase mt-1">Coupon</span>
+                    </button>
+                </div>
+
+                <div
+                    class="border border-slate-200 rounded-xl overflow-hidden shadow-inner bg-white h-48 flex flex-col">
+                    <table class="w-full text-left border-collapse table-fixed">
+                        <thead class="sticky top-0 z-10">
+                            <tr
+                                class="bg-slate-100 border-b border-slate-200 text-[9px] font-black uppercase text-slate-500">
+                                <th class="px-3 py-2 w-1/4">Type</th>
+                                <th class="px-3 py-2 w-1/4">Amount</th>
+                                <th class="px-3 py-2 w-1/3">Note</th>
+                                <th class="px-3 py-2 text-center w-12"></th>
+                            </tr>
+                        </thead>
+                    </table>
+                    <div class="overflow-y-auto flex-1 custom-scrollbar">
+                        <table class="w-full text-left border-collapse table-fixed">
+                            <tbody id="multiModeTableBody" class="text-[11px] font-bold text-slate-700">
+                                <tr class="border-b border-slate-50">
+                                    <td class="px-3 py-2 w-1/4">Cash A/c</td>
+                                    <td class="px-3 py-2 w-1/4">500.00</td>
+                                    <td class="px-3 py-2 w-1/3 text-slate-400 italic truncate">Initial Pay</td>
+                                    <td class="px-3 py-2 text-center w-12">
+                                        <button class="text-red-500 active:scale-90 transition-transform"><i
+                                                data-lucide="x-circle" class="w-4 h-4"></i></button>
+                                    </td>
+                                </tr>
+                                <tr class="border-b border-slate-50">
+                                    <td class="px-3 py-2 w-1/4">UPI</td>
+                                    <td class="px-3 py-2 w-1/4">334.50</td>
+                                    <td class="px-3 py-2 w-1/3 text-slate-400 italic truncate">Txn_981223</td>
+                                    <td class="px-3 py-2 text-center w-12">
+                                        <button class="text-red-500 active:scale-90 transition-transform"><i
+                                                data-lucide="x-circle" class="w-4 h-4"></i></button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <button onclick="handleMultiModeSettle()"
+                    class="w-full py-4 bg-[#006ea6] text-white font-black rounded-xl text-lg shadow-lg active:scale-95 transition-all touch-btn">
+                    Complete Payment
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="partialPayModal" class="fixed inset-0 z-[150] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-700/20 backdrop-blur-md" onclick="closePartialPay()"></div>
+        <div
+            class="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden flex animate-in slide-in-from-bottom-10 duration-300">
+
+            <div class="flex-1 p-8 space-y-6">
+                <h5 id="partialPayTitle" class="font-black text-slate-800 text-lg">Add Amount - UPI</h5>
+
+                <div class="space-y-4">
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-black text-slate-400 uppercase">Amount</label>
+                        <div class="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4">
+                            <input type="number" id="partialAmountInput"
+                                class="w-full bg-transparent text-right text-3xl font-black text-slate-800 focus:outline-none"
+                                value="334.50">
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-black text-slate-400 uppercase">Reference</label>
+                        <div class="bg-slate-50 border-2 border-slate-100 rounded-2xl p-3">
+                            <input type="text" id="partialRefInput"
+                                class="w-full bg-transparent text-sm italic font-bold text-slate-600 focus:outline-none"
+                                placeholder="Enter Ref #">
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center pt-2">
+                        <span class="text-xs font-bold text-slate-400">Balance</span>
+                        <span class="text-xl font-black text-slate-800">0.00</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-4">
+                    <button onclick="closePartialPay()"
+                        class="flex-1 h-14 bg-red-500 text-white rounded-2xl flex items-center justify-center touch-btn">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                    <button onclick="confirmPartialPay()"
+                        class="flex-1 h-14 bg-emerald-500 text-white rounded-2xl flex items-center justify-center touch-btn">
+                        <i data-lucide="check" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="w-64 bg-slate-50 p-6 border-l border-slate-100 grid grid-cols-3 gap-2">
+                <script>
+                    const numpadGrid = document.currentScript.parentElement;
+                    [1, 2, 3, 4, 5, 6, 7, 8, 9, '.', 0].forEach(n => {
+                        document.write(`<button onclick="appendPartial('${n}')" class="aspect-square bg-white border border-slate-200 rounded-xl font-black text-xl text-slate-700 shadow-sm active:bg-indigo-50 touch-btn">${n}</button>`);
+                    });
+                </script>
+                <button onclick="backspacePartial()"
+                    class="aspect-square bg-white border border-slate-200 rounded-xl font-black text-slate-400 flex items-center justify-center active:bg-slate-200 touch-btn">
+                    <i data-lucide="delete" class="w-6 h-6"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // Dummy Order Data based on your image
+        let orders = [
+            { kot: '1', time: '04-Jan-2025 02:12:32 PM', type: 'DINE IN', invoice: 'INV26/85895', table: 'Ground Floor/T1', customer: 'Sample Customer Name', total: '834.00', status: 'Saved' },
+            { kot: '2', time: '04-Jan-2025 02:15:10 PM', type: 'DINE IN', invoice: '', table: 'Ground Floor/T4', customer: '', total: '0.00', status: 'Merged' },
+            { kot: '3', time: '04-Jan-2025 02:18:45 PM', type: 'DINE IN', invoice: '', table: 'Ground Floor/T7', customer: 'Sample Customer Name', total: '834.00', status: 'Cancelled' },
+            { kot: '1', time: '04-Jan-2025 02:22:12 PM', type: 'TAKE AWAY', invoice: 'INV26/85896', table: 'Counter/P1', customer: 'Sample Customer Name', total: '834.00', status: 'Settled' },
+            { kot: '1', time: '04-Jan-2025 02:25:00 PM', type: 'DELIVERY', invoice: '', table: 'Delivery/D1', customer: 'Sample Customer Name', total: '834.00', status: 'Running' }
+        ];
+
+        const customerDB = [
+            { name: "Shameer Davood", mobile: "9847012345", address: "Aluva, Kochi", reg: "32AAAAA0000A1Z1" },
+            { name: "Rahul Sharma", mobile: "9995001122", address: "Marine Drive, Kochi", reg: "32BBBBB1111B2Z2" },
+            { name: "Anjali Menon", mobile: "9447223344", address: "Kakkanad, Kochi", reg: "32CCCCC2222C3Z3" },
+            { name: "Justin Joseph", mobile: "9001002003", address: "Edappally, Kochi", reg: "32DDDDD3333D4Z4" },
+            { name: "Suresh Gopi", mobile: "9846000111", address: "Vyttila, Kochi", reg: "32EEEEE4444E5Z5" }
+        ];
+
+        let currentFilter = 'All';
+
+        function renderOrders(filteredData) {
+            const tbody = document.getElementById('orderTableBody');
+            tbody.innerHTML = '';
+
+            filteredData.forEach(order => {
+                const row = document.createElement('tr');
+                let print_kot = true, print_bill = true, show_kot = true, settle_kot = true;
+                if(order.status.toLowerCase()==='saved'){
+                    print_kot = false;
+                    print_bill = true;
+                    show_kot = false;
+                    settle_kot = true;
+                }
+                if(order.status.toLowerCase()==='merged'){
+                    print_kot = false;
+                    print_bill = false;
+                    show_kot = true;
+                    settle_kot = true;
+                }
+                if(order.status.toLowerCase()==='cancelled'){
+                    print_kot = false;
+                    print_bill = false;
+                    show_kot = false;
+                    settle_kot = false;
+                }
+                if(order.status.toLowerCase()==='settled'){
+                    print_kot = false;
+                    print_bill = true;
+                    show_kot = false;
+                    settle_kot = true;
+                }
+                // Apply status coloring
+                let statusClass = `status-${order.status.toLowerCase()}`;
+                row.className = `${statusClass} border-b border-white/20 text-[11px] font-bold transition-all hover:brightness-95`;
+
+                row.innerHTML = `
+                    <td class="px-3 py-3 text-center border-r border-black/5">${order.kot}</td>
+                    <td class="px-3 py-3 border-r border-black/5">${order.time}</td>
+                    <td class="px-3 py-3 border-r border-black/5">${order.type}</td>
+                    <td class="px-3 py-3 border-r border-black/5 italic">${order.invoice || '---'}</td>
+                    <td class="px-3 py-3 border-r border-black/5">${order.table}</td>
+                    <td class="px-3 py-3 border-r border-black/5">${order.customer || '---'}</td>
+                    <td class="px-3 py-3 border-r border-black/5 text-right font-black">${order.total}</td>
+                    <td class="px-3 py-3 border-r border-black/5 text-center">
+                        <button onclick="printSuccess('KOT REPRINTED')" class=" ${!print_kot? 'hidden' : ''} w-10 h-10 bg-white/50 rounded-lg flex items-center justify-center mx-auto touch-btn shadow-sm"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                    </td>
+                    <td class="px-3 py-2 border-r border-black/5 text-center">
+                        <button onclick="printSuccess('BILL REPRINTED')" class=" ${!print_bill? 'hidden' : ''} w-10 h-10 bg-white/50 rounded-lg flex items-center justify-center mx-auto touch-btn shadow-sm"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                    </td>
+                    <td class="px-3 py-2 border-r border-black/5 text-center">
+                        <button onclick="openKotView(2)" class=" ${!show_kot? 'hidden' : ''} w-10 h-10 bg-red-400 text-white rounded-lg flex items-center justify-center mx-auto touch-btn shadow-sm"><i data-lucide="mouse-pointer-2" class="w-4 h-4"></i></button>
+                    </td>
+                    <td class="px-3 py-2 text-center">
+                        <button onclick="openSettleModal('${order.table}')" class=" ${!settle_kot? 'hidden' : ''} w-10 h-10 bg-emerald-600 text-white rounded-lg flex items-center justify-center mx-auto touch-btn shadow-sm"><i data-lucide="wallet" class="w-4 h-4"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            lucide.createIcons();
+        }
+
+        function filterByStatus(status) {
+            currentFilter = status;
+            
+            // UI Tab management
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('tab-active', 'font-black');
+                btn.classList.add('font-bold');
+            });
+            event.target.classList.add('tab-active', 'font-black');
+
+            handleSearch(); // Trigger filter with current search
+        }
+
+        function handleSearch() {
+            const query = document.getElementById('orderSearch').value.toLowerCase();
+            
+            const filtered = orders.filter(o => {
+                const matchesSearch = o.invoice.toLowerCase().includes(query) || 
+                                     o.table.toLowerCase().includes(query) || 
+                                     o.customer.toLowerCase().includes(query);
+                
+                const matchesTab = (currentFilter === 'All') || 
+                                   (currentFilter === 'Bill Generated' && o.invoice !== '') ||
+                                   (o.type === currentFilter.toUpperCase()) ||
+                                   (o.status === currentFilter);
+                                   
+                return matchesSearch && matchesTab;
+            });
+
+            renderOrders(filtered);
+        }
+
+        function openDeliverySummary() {
+            // Redirect to delivery summary page
+            window.location.href = 'delivery_summary.html';
+        }
+
+        // Initial render
+        renderOrders(orders);
+
+        function printSuccess(msg){
+            notify(msg, 'info')
+        }
+
+        function notify(msg, state) {
+            let color = "bg-slate-800";
+            let iconName = "info"; // Default icon
+
+            switch (state) {
+                case "success":
+                    color = "bg-emerald-500";
+                    iconName = "check-circle";
+                    break;
+                case "error":
+                    color = "bg-red-500";
+                    iconName = "alert-circle";
+                    break;
+                case "warning":
+                    color = "bg-orange-500";
+                    iconName = "alert-triangle";
+                    break;
+                case "info":
+                    color = "bg-blue-500";
+                    iconName = "info";
+                    break;
+            }
+
+            const toast = document.createElement('div');
+            // Added 'right-10' for positioning and 'flex' for icon alignment
+            toast.className = `fixed bottom-10 right-10 ${color} text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl animate-in fade-in slide-in-from-bottom-5 duration-300 z-[300] flex items-center gap-3`;
+
+            // Create the icon and text structure
+            toast.innerHTML = `
+                <div class="bg-white/20 p-1.5 rounded-lg">
+                    <i data-lucide="${iconName}" class="w-5 h-5 text-white"></i>
+                </div>
+                <span>${msg}</span>
+            `;
+
+            document.body.appendChild(toast);
+
+            // Initialize the icon for the new element
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.classList.add('animate-out', 'fade-out', 'slide-out-to-bottom-5');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function openSettleModal(id) {
+            selectedTableId = id;
+            document.getElementById('settleTitle').innerText = `Settlement: ${id}`;
+            document.getElementById('settleModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeSettleModal() {
+            document.getElementById('settleModal').classList.add('hidden');
+        }
+
+        function handleQuickSettle(method) {
+            closeSettleModal();
+            setTimeout(() => {
+                // Your custom toaster logic
+                notify(`Settled with ${method}`, "success");
+            }, 800);
+        }
+
+        // Sub-Modal Handlers
+        function openCreditPopup() {
+    // Transfer the current table info to the credit modal title if needed
+    const currentTable = document.getElementById('settleTitle').innerText;
+    document.getElementById('creditModal').classList.remove('hidden');
+    lucide.createIcons();
+}
+
+        function closeCreditPopup() {
+            document.getElementById('creditModal').classList.add('hidden');
+        }
+
+        function confirmCreditSettle() {
+            const ledger = document.getElementById('ledgerSelect').value;
+            closeCreditPopup();
+            closeSettleModal();
+            notify(`Settled to ${ledger}`, 'success');
+        }
+
+        function openMultiMode() {
+            document.getElementById('multiModeModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeMultiMode() {
+            document.getElementById('multiModeModal').classList.add('hidden');
+        }
+
+        function filterCustomers(query, type) {
+            const listContainer = document.getElementById('customerSuggestions');
+            const body = document.getElementById('suggestionBody');
+
+            if (query.length < 2) {
+                listContainer.classList.add('hidden');
+                return;
+            }
+
+            const filtered = customerDB.filter(c =>
+                c[type].toLowerCase().includes(query.toLowerCase())
+            );
+
+            if (filtered.length > 0) {
+                body.innerHTML = '';
+                filtered.forEach(cust => {
+                    const div = document.createElement('div');
+                    // High-density 2-column touch row
+                    div.className = "grid grid-cols-2 px-4 py-3 border-b border-slate-50 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer transition-colors";
+                    div.onclick = () => selectCustomer(cust);
+                    div.innerHTML = `
+                <span class="text-xs font-bold text-slate-700">${cust.name}</span>
+                <span class="text-xs font-medium text-slate-500">${cust.mobile}</span>
+            `;
+                    body.appendChild(div);
+                });
+                listContainer.classList.remove('hidden');
+            } else {
+                listContainer.classList.add('hidden');
+            }
+        }
+
+        function selectCustomer(cust) {
+            document.getElementById('custNameInput').value = cust.name;
+            document.getElementById('custMobileInput').value = cust.mobile;
+            document.getElementById('custAddressInput').value = cust.address;
+            document.getElementById('custRegInput').value = cust.reg;
+
+            // Hide the suggestions
+            document.getElementById('customerSuggestions').classList.add('hidden');
+
+            // Feedback
+            notify(`Customer ${cust.name} selected`, "info");
+        }
+
+        document.addEventListener('click', function (e) {
+            const list = document.getElementById('customerSuggestions');
+            if (!e.target.closest('.relative')) {
+                list.classList.add('hidden');
+            }
+        });
+
+        function openPartialPay(method) {
+            document.getElementById('partialPayTitle').innerText = `Add Amount - ${method}`;
+            document.getElementById('partialAmountInput').value = ""; // Reset for fresh entry
+            document.getElementById('partialPayModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closePartialPay() {
+            document.getElementById('partialPayModal').classList.add('hidden');
+        }
+
+        // Numpad logic
+        function appendPartial(val) {
+            const input = document.getElementById('partialAmountInput');
+            // Prevent double dots
+            if (val === '.' && input.value.includes('.')) return;
+            input.value += val;
+        }
+
+        function backspacePartial() {
+            const input = document.getElementById('partialAmountInput');
+            input.value = input.value.slice(0, -1);
+        }
+
+        function confirmPartialPay() {
+            const amount = document.getElementById('partialAmountInput').value;
+            const ref = document.getElementById('partialRefInput').value;
+            const method = document.getElementById('partialPayTitle').innerText.split(' - ')[1];
+
+            if (!amount || parseFloat(amount) <= 0) {
+                notify("Enter a valid amount", "error");
+                return;
+            }
+
+            // Update the ledger table dynamically
+            const tbody = document.getElementById('multiModeTableBody');
+            const newRow = document.createElement('tr');
+            newRow.className = "border-b border-slate-50";
+            newRow.innerHTML = `
+                <td class="px-4 py-3">${method}</td>
+                <td class="px-4 py-3">${parseFloat(amount).toFixed(2)}</td>
+                <td class="px-4 py-3 text-slate-400 italic">${ref || '...'}</td>
+                <td class="px-4 py-3 text-center">
+                    <button onclick="this.parentElement.parentElement.remove()" class="text-red-500"><i data-lucide="x-circle" class="w-5 h-5"></i></button>
+                </td>
+            `;
+            tbody.prepend(newRow);
+            lucide.createIcons();
+
+            closePartialPay();
+            notify(`${method} payment added`, "success");
+        }
+
+        
+
+        function handleMultiModeSettle() {
+            closeMultiMode();
+            handleQuickSettle('MultiMode');
+        }
+
+        function closeMultiMode() {
+            document.getElementById('multiModeModal').classList.add('hidden');
+        }
+
+        function openKotView(id) {
+    // This typically would open the order back in the main tables.html view
+    notify("Opening Order Details...", "info");
+    // If you want to redirect to the main view:
+    // window.location.href = 'index.html?orderId=' + id;
+}
+    </script>
+</body>
+</html>

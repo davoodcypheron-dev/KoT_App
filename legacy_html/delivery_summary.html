@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Delivery Summary | POS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #fcf5d5; }
+        .touch-btn:active { transform: scale(0.96); }
+        
+        /* Status Colors to match your image */
+        .status-running { background-color: #fde68a !important; } /* Yellow */
+        .status-saved { background-color: #bbf7d0 !important; }   /* Green */
+        .status-settled { background-color: #bfdbfe !important; } /* Blue */
+        
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="p-2 select-none h-screen flex flex-col">
+
+    <div class="bg-white rounded-xl shadow-sm p-3 mb-2 flex flex-col gap-3">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <button onclick="window.history.back()" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center touch-btn">
+                    <i data-lucide="arrow-left" class="w-5 h-5 text-slate-600"></i>
+                </button>
+                <h1 class="font-black text-slate-800 text-lg">Delivery Summary</h1>
+            </div>
+            <div class="flex gap-4 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-[#fde68a]"></span> Running KoT</div>
+                <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-[#bbf7d0]"></span> Saved KoT</div>
+                <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-[#bfdbfe]"></span> Settled KoT</div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 flex-wrap">
+            <div class="flex flex-col gap-1">
+                <label class="text-[9px] font-black text-slate-400 uppercase ml-1">Delivery Person</label>
+                <select id="personFilter" onchange="applyFilters()" class="h-10 bg-slate-50 border border-slate-200 rounded-lg px-3 text-sm font-bold outline-none w-48">
+                    <option value="All">All Persons</option>
+                    <option value="Anil Das">Anil Das</option>
+                    <option value="Sunil Kumar">Sunil Kumar</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="text-[9px] font-black text-slate-400 uppercase ml-1">Date</label>
+                <input type="date" id="dateFilter" value="2026-03-11" onchange="applyFilters()" class="h-10 bg-slate-50 border border-slate-200 rounded-lg px-3 text-sm font-bold outline-none w-40">
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="text-[9px] font-black text-slate-400 uppercase ml-1">Status</label>
+                <select id="statusFilter" onchange="applyFilters()" class="h-10 bg-slate-50 border border-slate-200 rounded-lg px-3 text-sm font-bold outline-none w-32">
+                    <option value="All">All Status</option>
+                    <option value="Running">Running</option>
+                    <option value="Saved">Saved</option>
+                    <option value="Settled">Settled</option>
+                </select>
+            </div>
+
+            <div class="flex gap-2 ml-auto">
+                <div class="bg-rose-50 border border-rose-100 px-6 py-2 rounded-xl text-center">
+                    <p class="text-[8px] font-black text-rose-600 uppercase">Total Delivery</p>
+                    <p class="text-lg font-black text-slate-800" id="totalDeliveryAmt">1,850.00</p>
+                </div>
+                <div class="bg-emerald-50 border border-emerald-100 px-6 py-2 rounded-xl text-center">
+                    <p class="text-[8px] font-black text-emerald-600 uppercase">Total Settled</p>
+                    <p class="text-lg font-black text-slate-800" id="totalSettledAmt">1,350.00</p>
+                </div>
+            </div>
+
+            <div class="relative w-48 ml-2">
+                <i data-lucide="search" class="absolute left-3 top-3 w-4 h-4 text-slate-400"></i>
+                <input type="text" id="deliverySearch" placeholder="Search..." oninput="applyFilters()"
+                    class="w-full pl-9 h-10 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-1 bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200 flex flex-col">
+        <div class="overflow-x-auto flex-1">
+            <table class="w-full text-left border-collapse table-auto min-w-[1000px]">
+                <thead class="sticky top-0 z-20">
+                    <tr class="bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest">
+                        <th class="px-3 py-4 border-r border-slate-600">Delivery Person Name</th>
+                        <th class="px-3 py-4 border-r border-slate-600 text-center">KoT Number</th>
+                        <th class="px-3 py-4 border-r border-slate-600">KoT Date & Time</th>
+                        <th class="px-3 py-4 border-r border-slate-600 text-left">Customer Name</th>
+                        <th class="px-3 py-4 border-r border-slate-600">Phone Number</th>
+                        <th class="px-3 py-4 border-r border-slate-600">Bill Date & Time</th>
+                        <th class="px-3 py-4 border-r border-slate-600">Settlement Date & Time</th>
+                        <th class="px-3 py-4 text-right">Bill Amount</th>
+                    </tr>
+                </thead>
+                <tbody id="deliveryTableBody">
+                    </tbody>
+            </table>
+        </div>
+        <div class="bg-slate-50 border-t border-slate-200 p-3 flex justify-end">
+            <div class="flex items-center gap-4 mr-2">
+                <span class="text-xs font-black text-slate-500 uppercase tracking-widest">Grand Total</span>
+                <span class="text-xl font-black text-slate-800" id="footerTotal">1,850.00</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        const deliveryData = [
+            { person: 'Anil Das', kot: '1', kotTime: '04-Jan-2026 05:58 PM', customer: 'Sample Customer', phone: '9857556252', billTime: '04-Jan-2026 06:00 PM', settleTime: '', amount: 350.00, status: 'Saved' },
+            { person: 'Anil Das', kot: '2', kotTime: '04-Jan-2026 06:08 PM', customer: 'Sample Customer', phone: '9857556252', billTime: '04-Jan-2026 06:00 PM', settleTime: '04-Jan-2026 06:30 PM', amount: 1350.00, status: 'Settled' },
+            { person: 'Anil Das', kot: '3', kotTime: '04-Jan-2026 06:08 PM', customer: 'Sample Customer', phone: '9857556252', billTime: '', settleTime: '', amount: 150.00, status: 'Running' }
+        ];
+
+        function renderTable(data) {
+            const tbody = document.getElementById('deliveryTableBody');
+            tbody.innerHTML = '';
+            
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.className = `status-${item.status.toLowerCase()} border-b border-white/20 text-[11px] font-bold hover:brightness-95`;
+                
+                row.innerHTML = `
+                    <td class="px-3 py-3 border-r border-black/5">${item.person}</td>
+                    <td class="px-3 py-3 border-r border-black/5 text-center">${item.kot}</td>
+                    <td class="px-3 py-3 border-r border-black/5">${item.kotTime}</td>
+                    <td class="px-3 py-3 border-r border-black/5">${item.customer}</td>
+                    <td class="px-3 py-3 border-r border-black/5">${item.phone}</td>
+                    <td class="px-3 py-3 border-r border-black/5">${item.billTime || '---'}</td>
+                    <td class="px-3 py-3 border-r border-black/5">${item.settleTime || '---'}</td>
+                    <td class="px-3 py-3 text-right font-black">${item.amount.toFixed(2)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function applyFilters() {
+            const person = document.getElementById('personFilter').value;
+            const status = document.getElementById('statusFilter').value;
+            const search = document.getElementById('deliverySearch').value.toLowerCase();
+
+            const filtered = deliveryData.filter(item => {
+                const matchPerson = person === 'All' || item.person === person;
+                const matchStatus = status === 'All' || item.status === status;
+                const matchSearch = item.customer.toLowerCase().includes(search) || item.phone.includes(search);
+                return matchPerson && matchStatus && matchSearch;
+            });
+
+            renderTable(filtered);
+            updateSummary(filtered);
+        }
+
+        function updateSummary(data) {
+            const total = data.reduce((sum, item) => sum + item.amount, 0);
+            const settled = data.filter(i => i.status === 'Settled').reduce((sum, item) => sum + item.amount, 0);
+            
+            document.getElementById('totalDeliveryAmt').innerText = total.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+            document.getElementById('totalSettledAmt').innerText = settled.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+            document.getElementById('footerTotal').innerText = total.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        }
+
+        // Initial Load
+        renderTable(deliveryData);
+        updateSummary(deliveryData);
+    </script>
+</body>
+</html>

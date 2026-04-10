@@ -1,0 +1,1801 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f8fafc;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .touch-btn:active {
+            transform: scale(0.96);
+            filter: brightness(0.9);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body class="h-screen overflow-hidden flex flex-col p-1.5 select-none">
+
+    <header
+        class="bg-white rounded-xl shadow-sm p-1.5 mb-1.5 flex items-center justify-between border border-slate-200">
+        <h1 class="pl-3 font-extrabold text-slate-800 tracking-tight">New Order</h1>
+        <div class="flex items-center gap-1.5 h-12">
+
+            <button onclick="focusQRScanner()"
+                class="h-full px-8 bg-slate-800  text-white rounded-lg font-black text-xs flex items-center gap-2 touch-btn">
+                <i data-lucide="qr-code" class="w-5 h-5"></i> Scan QR
+            </button>
+            <button id="btn-type-DI" onclick="setOrderType('DI')"
+                class="h-full px-8 bg-slate-600 text-white rounded-lg font-black text-xs uppercase flex items-center gap-2 touch-btn">
+                <i data-lucide="utensils" class="w-5 h-5"></i> Dine In
+            </button>
+            <button id="btn-type-TA" onclick="setOrderType('TA')"
+                class="h-full px-8 bg-slate-600 text-white rounded-lg font-black text-xs uppercase flex items-center gap-2 touch-btn">
+                <i data-lucide="shopping-bag" class="w-5 h-5"></i> Take Away
+            </button>
+            <button id="btn-type-DE" onclick="setOrderType('DE')"
+                class="h-full px-8 bg-slate-600 text-white rounded-lg font-black text-xs uppercase flex items-center gap-2 touch-btn">
+                <i data-lucide="bike" class="w-5 h-5"></i> Delivery
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex gap-1.5 overflow-hidden">
+        <input type="text" id="qrHiddenInput" class="absolute -top-10 opacity-0 pointer-events-none"
+            onchange="handleQRScan(this.value)">
+
+        <div class="w-[650px] bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+
+            <div id="kot-grid-buttons" class="p-2 grid grid-cols-4 gap-2 border-b border-slate-100 bg-slate-50/30">
+                <button onclick="handleTableClick()" id="btn-table"
+                    class="h-14 flex flex-col items-center justify-center bg-white border border-slate-200 rounded-xl touch-btn shadow-sm">
+                    <i data-lucide="layout-grid" class="w-5 h-5 text-slate-400"></i>
+                    <span class="text-[11px] font-black text-rose-500 mt-1 uppercase" id="table-btn-text">T12</span>
+                </button>
+                <button onclick="openCustomerModal()" id="btn-customer"
+                    class="h-14 flex flex-col items-center justify-center bg-white border border-slate-200 rounded-xl touch-btn shadow-sm">
+                    <i data-lucide="user-plus" class="w-5 h-5 text-slate-400"></i>
+                    <span class="text-[11px] font-black text-slate-500 mt-1 uppercase">Customer</span>
+                </button>
+                <button onclick="openPaxModal()" id="btn-pax"
+                    class="h-14 flex flex-col items-center justify-center bg-white border border-slate-200 rounded-xl touch-btn shadow-sm">
+                    <i data-lucide="users" class="w-5 h-5 text-rose-500"></i>
+                    <span class="text-[11px] font-black text-rose-500 mt-1 uppercase" id="pax-btn-text">Pax: 8</span>
+                </button>
+                <button onclick="openNotesModal()" id="btn-notes"
+                    class="h-14 flex flex-col items-center justify-center bg-white border border-slate-200 rounded-xl touch-btn shadow-sm">
+                    <i data-lucide="sticky-note" class="w-5 h-5 text-slate-400"></i>
+                    <span class="text-[11px] font-black text-slate-500 mt-1 uppercase">Notes</span>
+                </button>
+            </div>
+
+            <div
+                class="grid grid-cols-12 px-2 py-1 bg-slate-100/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
+                <div class="col-span-1"></div>
+                <div class="col-span-4 pl-3">Items</div>
+                <div class="col-span-3 text-center">Qty</div>
+                <div class="col-span-3 text-center">Price & Total</div>
+                <div class="col-span-1"></div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 bg-slate-50/20">
+
+                <div id="cartContainer" class="space-y-1 mt-2">
+                    <!-- Dynamic Cart Items and Session Headers Rendered Here -->
+                </div>
+
+            </div>
+
+
+
+            <div class="bg-slate-50 p-2 border-t border-slate-200">
+                <div id="bill-summary" class="space-y-1 mb-2 hidden">
+                    <div class="flex justify-between text-sm font-bold text-slate-500"><span>Sub Total</span><span
+                            id="cartSubtotal" class="font-black text-slate-800">0.00</span></div>
+                    <div class="flex justify-between text-sm font-bold text-slate-500"><span>Total Tax</span><span
+                            id="cartTax" class="font-black text-slate-800">0.00</span></div>
+                    <div class="flex justify-between text-sm font-bold text-slate-500"><span>Offer Discount</span><span
+                            id="cartDiscount" class="font-black text-rose-500">0.00</span></div>
+                </div>
+
+                <div class="flex items-center justify-between pt-4 border-t-2 border-dashed border-slate-300">
+                    <div class="flex gap-2">
+                        <button onclick="openOfferModal()"
+                            class="h-12 px-6 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg touch-btn flex items-center gap-2"><i
+                                data-lucide="ticket" class="w-4 h-4"></i> Apply Offer</button>
+                        <button
+                            class="h-12 px-6 bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg touch-btn flex items-center gap-2"><i
+                                data-lucide="percent" class="w-4 h-4"></i> Discount</button>
+                    </div>
+
+                    <button onclick="toggleBillSummary()"
+                        class="flex items-center gap-3 text-right hover:bg-slate-100 p-2 rounded-xl transition-colors touch-btn">
+                        <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500">
+                            <i data-lucide="info" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <span
+                                class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-1 text-right">Total
+                                Payable</span>
+                            <span id="cartTotal"
+                                class="text-2xl font-black text-slate-900 leading-none flex justify-end">
+                                ₹ 0.00</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-3 grid grid-cols-4 gap-2 bg-white border-t border-slate-100">
+                <button onclick="handleSaveKot()"
+                    class="h-14 bg-[#1e56a0] text-white rounded-xl font-black text-[11px] uppercase flex flex-col items-center justify-center touch-btn shadow-lg"><i
+                        data-lucide="save" class="w-5 h-5 mb-1"></i> Save KoT</button>
+                <button onclick="openSettleModal('Save Bill', selectedTableId)"
+                    class="h-14 bg-emerald-600 text-white rounded-xl font-black text-[11px] uppercase flex flex-col items-center justify-center touch-btn shadow-lg"><i
+                        data-lucide="printer" class="w-5 h-5 mb-1"></i> Save Bill</button>
+                <button onclick="openSettleModal('Settle Bill', selectedTableId)"
+                    class="h-14 bg-blue-600 text-white rounded-xl font-black text-[11px] uppercase flex flex-col items-center justify-center touch-btn shadow-lg"><i
+                        data-lucide="banknote" class="w-5 h-5 mb-1"></i> Settle Bill</button>
+                <button onclick="handleCancelButton()"
+                    class="h-14 bg-rose-500 text-white rounded-xl font-black text-[11px] uppercase flex flex-col items-center justify-center touch-btn shadow-lg"><i
+                        data-lucide="trash-2" class="w-5 h-5 mb-1"></i> Cancel</button>
+            </div>
+        </div>
+
+        <div class="flex-1 flex flex-col gap-1.5 overflow-hidden">
+
+            <div class="bg-white p-1 rounded-xl  flex gap-2">
+                <div class="relative flex-1">
+                    <i data-lucide="search" class="absolute left-4 top-3 w-4 h-4 text-slate-300"></i>
+                    <input type="text" id="searchItemInput" placeholder="Search Item..." oninput="filterItems()"
+                        class="w-full pl-12 pr-4 h-10 bg-slate-50 rounded-xl text-base  border border-slate-250 outline-none ">
+                </div>
+                <div class="relative w-56">
+                    <i data-lucide="tag" class="absolute left-4 top-3 w-4 h-4 text-slate-300"></i>
+                    <input type="text" id="searchGroupInput" placeholder="Search Group..." oninput="filterGroups()"
+                        class="w-full pl-12 pr-4 h-10 bg-slate-50 rounded-xl text-base border border-slate-250 outline-none">
+                </div>
+            </div>
+
+            <div class="flex-1 flex gap-1.5 overflow-hidden">
+                <div id="itemsContainer"
+                    class="flex-1 bg-white rounded-xl border border-slate-200 p-4 overflow-y-auto grid grid-cols-3 xl:grid-cols-3 content-start gap-4 custom-scrollbar"
+                    style="grid-auto-rows: min-content;">
+                    <!-- Items rendered here via JS -->
+                </div>
+
+                <div class="w-56 flex flex-col gap-1.5 overflow-hidden">
+                    <button onclick="scrollGroups(-200)"
+                        class="w-full py-2 bg-slate-200 text-slate-800 rounded-xl flex items-center justify-center shadow-sm border border-slate-200 touch-active transition-transform active:scale-95">
+                        <i data-lucide="arrow-big-up-dash" class="w-5 h-5"></i>
+                    </button>
+
+                    <div id="groupsContainer"
+                        class="flex-1 bg-white rounded-xl border border-slate-200 flex flex-col overflow-y-auto gap-2 p-1 custom-scrollbar"
+                        style="scroll-behavior: smooth;">
+                        <!-- Groups rendered here via JS -->
+                    </div>
+
+                    <button onclick="scrollGroups(200)"
+                        class="w-full py-2 bg-slate-200 text-slate-800 rounded-xl flex items-center justify-center shadow-sm border border-slate-200 touch-active transition-transform active:scale-95">
+                        <i data-lucide="arrow-big-down-dash" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals -->
+    <div id="paxModal" class="fixed inset-0 z-[110] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onclick="closePaxModal()"></div>
+        <div
+            class="relative bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 animate-in fade-in zoom-in duration-200">
+            <div class="text-center mb-6">
+                <h3 class="text-2xl font-black text-slate-800">Table <span id="paxTitle">T12</span></h3>
+                <p class="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Enter Guest Count (PAX)</p>
+            </div>
+            <div class="bg-slate-50 rounded-2xl p-4 mb-6 border-2 border-slate-100">
+                <input type="number" id="paxInput"
+                    class="w-full bg-transparent text-center text-5xl font-black text-indigo-600 outline-none focus:ring-0"
+                    placeholder="0">
+            </div>
+            <div class="grid grid-cols-3 gap-3 mb-6">
+                <script>
+                    const paxGrid = document.currentScript.parentElement;
+                    [1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => {
+                        document.write(`<button onclick="paxPress('${n}')" class="h-16 bg-white border-2 border-slate-100 rounded-2xl font-black text-xl text-slate-700 active:bg-indigo-50 active:border-indigo-200 transition-all touch-btn">${n}</button>`);
+                    });
+                </script>
+                <button onclick="paxClear()"
+                    class="h-16 bg-red-50 text-red-500 border-2 border-red-100 rounded-2xl font-black text-xs active:bg-red-100 touch-btn uppercase">Clear</button>
+                <button onclick="paxPress('0')"
+                    class="h-16 bg-white border-2 border-slate-100 rounded-2xl font-black text-xl text-slate-700 active:bg-indigo-50 touch-btn">0</button>
+                <button onclick="paxBack()"
+                    class="h-16 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 active:bg-slate-200 touch-btn flex items-center justify-center"><i
+                        data-lucide="delete" class="w-6 h-6"></i></button>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="closePaxModal()"
+                    class="flex-1 py-4 font-bold text-slate-400 rounded-2xl hover:bg-slate-100 transition-colors">Close</button>
+                <button onclick="acceptPax()"
+                    class="flex-[2] py-4 bg-[#1e56a0] text-white font-black rounded-2xl shadow-lg shadow-blue-100 active:scale-95 transition-all">Accept</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="customerModal" class="fixed inset-0 z-[115] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-700/20 backdrop-blur-md" onclick="closeCustomerModal()"></div>
+        <div
+            class="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div class="bg-slate-50 p-6 border-b border-slate-100">
+                <h3 class="text-xl font-black text-slate-800 mb-4">Customer Details</h3>
+                <div class="grid grid-cols-2 gap-4 relative">
+                    <div class="space-y-1 relative">
+                        <label class="text-[9px] font-black text-slate-400 uppercase">Customer Name</label>
+                        <input type="text" id="mainCustNameInput" placeholder="Start typing name..."
+                            oninput="filterCustomers(this.value, 'name', 'main')"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div class="space-y-1 relative">
+                        <label class="text-[9px] font-black text-slate-400 uppercase">Mobile Number</label>
+                        <input type="text" id="mainCustMobileInput" placeholder="9876543210"
+                            oninput="filterCustomers(this.value, 'mobile', 'main')"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div id="mainCustomerSuggestions"
+                        class="hidden absolute top-[52px] left-0 right-0 z-[200] bg-white border border-slate-200 shadow-2xl rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                        <div
+                            class="bg-slate-100 px-4 py-2 border-b border-slate-200 grid grid-cols-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                            <span>Name</span>
+                            <span>Mobile</span>
+                        </div>
+                        <div id="mainSuggestionBody">
+                        </div>
+                    </div>
+
+                    <div class="col-span-2 space-y-1">
+                        <label class="text-[9px] font-black text-slate-400 uppercase">Address</label>
+                        <textarea id="mainCustAddressInput"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 h-16 resize-none"
+                            placeholder="Type address"></textarea>
+                    </div>
+                    <div class="col-span-2 space-y-1">
+                        <label class="text-[9px] font-black text-slate-400 uppercase">Reg. Number</label>
+                        <input type="text" id="mainCustRegInput"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 h-10"
+                            value="">
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 flex gap-3">
+                <button onclick="closeCustomerModal()"
+                    class="flex-[1] h-14 text-slate-500 rounded-2xl font-black text-sm uppercase hover:bg-slate-100 touch-btn shadow-sm">Cancel</button>
+                <button onclick="saveCustomerModal()"
+                    class="flex-[2] h-14 bg-[#1e56a0] text-white rounded-2xl font-black text-sm uppercase hover:bg-[#1e56a0]/80 touch-btn shadow-lg shadow-emerald-100">Save
+                    Customer</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="notesModal" class="fixed inset-0 z-[120] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-700/20 backdrop-blur-md" onclick="closeNotesModal()"></div>
+        <div
+            class="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div class="p-6">
+                <h3 class="text-xl font-black text-slate-800 mb-4">KOT Notes</h3>
+                <textarea id="kotNotesInput"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold shadow-inner outline-none resize-none h-32"
+                    placeholder="Enter any special instructions or notes..."></textarea>
+            </div>
+            <div class="p-6 pt-0 flex gap-3">
+                <button onclick="closeNotesModal()"
+                    class="flex-[1] h-14 text-slate-500 rounded-2xl font-black text-sm uppercase hover:bg-slate-100 shadow-sm">Cancel</button>
+                <button onclick="saveNotesModal()"
+                    class="flex-[2] h-14 bg-[#1e56a0] text-white rounded-2xl font-black text-sm uppercase hover:bg-[#1e56a0]/80 touch-btn shadow-lg shadow-indigo-100">Save
+                    Notes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmDiscardModal" class="fixed inset-0 z-[200] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+        <div
+            class="relative bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-8 text-center animate-in zoom-in duration-150">
+            <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 bg-rose-100 text-rose-600">
+                <i data-lucide="alert-triangle" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-black text-slate-800 mb-2">Discard Unsaved Changes?</h3>
+            <p class="text-slate-500 text-sm mb-8">You have items in your cart. Returning to the table view will discard
+                them.</p>
+            <div class="flex gap-3">
+                <button onclick="closeConfirmDiscard()"
+                    class="flex-1 py-4 bg-slate-100 text-slate-500 font-bold rounded-2xl touch-btn">Cancel</button>
+                <button onclick="proceedToTableView()"
+                    class="flex-1 py-4 bg-rose-600 text-white font-black rounded-2xl shadow-lg touch-btn">Discard</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Offer Modal -->
+    <div id="offerModal" class="fixed inset-0 z-[150] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onclick="closeOfferModal()"></div>
+        <div
+            class="relative bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col h-[75vh]">
+
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-xl">
+                        <i data-lucide="ticket" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="text-xl font-black text-slate-800">Apply Offers</h3>
+                </div>
+                <button onclick="closeOfferModal()"
+                    class="w-10 h-10 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center touch-btn">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 flex overflow-hidden">
+                <!-- Left Panel: Cart Items -->
+                <div class="w-1/2 flex flex-col border-r border-slate-200 bg-white">
+                    <div class="p-4 bg-indigo-50/50 border-b border-slate-100">
+                        <p class="text-xs font-black text-indigo-600 uppercase tracking-widest">Select Item</p>
+                    </div>
+                    <div id="offer-items-list" class="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+                        <!-- JS generated items -->
+                    </div>
+                </div>
+
+                <!-- Right Panel: Available Offers -->
+                <div class="w-1/2 flex flex-col bg-slate-50 relative">
+                    <div class="p-4 bg-white border-b border-slate-100">
+                        <p class="text-xs font-black text-slate-600 uppercase tracking-widest">Available Offers <span
+                                id="offer-item-name" class="text-indigo-600"></span></p>
+                    </div>
+
+                    <div id="offer-empty-state"
+                        class="absolute inset-0 flex flex-col items-center justify-center text-slate-300 mt-12 hidden">
+                        <i data-lucide="ticket" class="w-16 h-16 mb-2 opacity-20"></i>
+                        <p class="font-bold text-sm">Select an item to view offers</p>
+                    </div>
+
+                    <div id="offer-list-container" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                        <!-- Offers will load here -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-5 border-t border-slate-100 bg-white flex justify-end gap-3">
+                <button onclick="closeOfferModal()"
+                    class="px-8 h-12 text-slate-500 font-bold rounded-xl active:bg-slate-100 touch-btn tracking-wide">Cancel</button>
+                <button onclick="applyOffer()"
+                    class="px-8 h-12 bg-indigo-600 text-white font-black rounded-xl shadow-lg shadow-indigo-100 touch-btn flex items-center gap-2 tracking-wide">
+                    <i data-lucide="check" class="w-4 h-4"></i> Apply Offer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settlement Modals Block Copied from tables_view.html -->
+    <div id="settleModal" class="fixed inset-0 z-[115] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-700/20 backdrop-blur-md" onclick="closeSettleModal()"></div>
+        <div
+            class="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+
+            <div class="bg-slate-50 p-6 border-b border-slate-100">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 id="settleTitle" class="text-xl font-black text-slate-800">Settlement: T1</h3>
+                </div>
+                <div class="grid grid-cols-2 gap-4 relative">
+                    <div class="space-y-1 relative">
+                        <label class="text-[9px] font-black text-slate-400 uppercase">Customer Name</label>
+                        <input type="text" id="settleCustNameInput" placeholder="Start typing name..."
+                            oninput="filterCustomers(this.value, 'name', 'settle')"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div class="space-y-1 relative">
+                        <label class="text-[9px] font-black text-slate-400 uppercase">Mobile Number</label>
+                        <input type="text" id="settleCustMobileInput" placeholder="9876543210"
+                            oninput="filterCustomers(this.value, 'mobile', 'settle')"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div id="customerSuggestions"
+                        class="hidden absolute top-[52px] left-0 right-0 z-[200] bg-white border border-slate-200 shadow-2xl rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                        <div
+                            class="bg-slate-100 px-4 py-2 border-b border-slate-200 grid grid-cols-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                            <span>Name</span>
+                            <span>Mobile</span>
+                        </div>
+                        <div id="suggestionBody">
+                        </div>
+                    </div>
+
+                    <div class="col-span-2 space-y-1">
+                        <label class="text-[9px] font-black text-slate-400 uppercase">Address</label>
+                        <textarea id="settleCustAddressInput"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 h-16 resize-none"
+                            placeholder="Type address"></textarea>
+                    </div>
+                    <div class="col-span-2 space-y-1">
+                        <label class="text-[9px] font-black text-slate-400 uppercase">Reg. Number</label>
+                        <input type="text" id="settleCustRegInput"
+                            class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 h-10"
+                            value="">
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 grid grid-cols-3 gap-3">
+                <button onclick="handleQuickSettle('Cash')"
+                    class="h-20 bg-emerald-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-emerald-100 touch-btn">
+                    <i data-lucide="banknote" class="w-6 h-6"></i>
+                    <span class="text-xs font-black uppercase">Cash</span>
+                </button>
+                <button onclick="handleQuickSettle('Card')"
+                    class="h-20 bg-blue-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-blue-100 touch-btn">
+                    <i data-lucide="credit-card" class="w-6 h-6"></i>
+                    <span class="text-xs font-black uppercase">Card</span>
+                </button>
+                <button onclick="handleQuickSettle('UPI')"
+                    class="h-20 bg-blue-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-purple-100 touch-btn">
+                    <i data-lucide="smartphone" class="w-6 h-6"></i>
+                    <span class="text-xs font-black uppercase">UPI</span>
+                </button>
+                <button onclick="openCreditPopup()"
+                    class="h-20 bg-blue-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-orange-100 touch-btn">
+                    <i data-lucide="book-open" class="w-6 h-6"></i>
+                    <span class="text-xs font-black uppercase">Credit</span>
+                </button>
+                <button onclick="openMultiMode()"
+                    class="h-20 bg-blue-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-slate-200 touch-btn">
+                    <i data-lucide="layers" class="w-6 h-6"></i>
+                    <span class="text-xs font-black uppercase">Other</span>
+                </button>
+                <button onclick="handleQuickSettle('Complimentary')"
+                    class="h-20 bg-pink-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg shadow-pink-100 touch-btn">
+                    <i data-lucide="gift" class="w-6 h-6"></i>
+                    <span class="text-xs font-black uppercase">Compliment</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="creditModal" class="fixed inset-0 z-[130] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-700/20 backdrop-blur-sm" onclick="closeCreditPopup()"></div>
+        <div class="relative bg-white w-full max-w-xs rounded-3xl shadow-2xl p-6 animate-in zoom-in duration-150">
+            <h4 class="text-center font-black text-slate-800 mb-4">Select Settlement Ledger</h4>
+            <select id="ledgerSelect"
+                class="w-full h-14 bg-slate-50 border-2 border-slate-100 rounded-xl px-4 font-bold text-slate-700 outline-none focus:border-blue-500 mb-6">
+                <option value="Staff Account">Staff Account</option>
+                <option value="VIP - Corporate">VIP - Corporate</option>
+                <option value="Director's Ledger">Director's Ledger</option>
+                <option value="External Vendor">External Vendor</option>
+            </select>
+            <button onclick="confirmCreditSettle()"
+                class="w-full py-4 bg-blue-500 text-white font-black rounded-xl touch-btn uppercase text-sm">Settle to
+                Ledger</button>
+        </div>
+    </div>
+
+    <div id="multiModeModal" class="fixed inset-0 z-[130] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onclick="closeMultiMode()"></div>
+        <div
+            class="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="credit-card" class="text-indigo-600 w-5 h-5"></i>
+                    <h4 class="font-black text-lg text-slate-800 tracking-tight">Multi-Payment Settlement</h4>
+                </div>
+                <button onclick="closeMultiMode()"
+                    class="w-8 h-8 bg-red-50 text-red-500 rounded-full flex items-center justify-center touch-btn">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-5 space-y-4">
+                <div class="grid grid-cols-4 gap-2">
+                    <button onclick="openPartialPay('Cash')"
+                        class="h-16 bg-sky-400 text-white rounded-xl flex flex-col items-center justify-center shadow-md touch-btn border-b-2 border-sky-600">
+                        <i data-lucide="banknote" class="w-4 h-4"></i>
+                        <span class="text-[10px] font-black uppercase mt-1">Cash</span>
+                    </button>
+                    <button onclick="openPartialPay('Card')"
+                        class="h-16 bg-sky-400 text-white rounded-xl flex flex-col items-center justify-center shadow-md touch-btn border-b-2 border-sky-600">
+                        <i data-lucide="credit-card" class="w-4 h-4"></i>
+                        <span class="text-[10px] font-black uppercase mt-1">Card</span>
+                    </button>
+                    <button onclick="openPartialPay('UPI')"
+                        class="h-16 bg-sky-400 text-white rounded-xl flex flex-col items-center justify-center shadow-md touch-btn border-b-2 border-sky-600">
+                        <i data-lucide="smartphone" class="w-4 h-4"></i>
+                        <span class="text-[10px] font-black uppercase mt-1">UPI</span>
+                    </button>
+                    <button onclick="openPartialPay('Credit')"
+                        class="h-16 bg-sky-400 text-white rounded-xl flex flex-col items-center justify-center shadow-md touch-btn border-b-2 border-sky-600">
+                        <i data-lucide="book-open" class="w-4 h-4"></i>
+                        <span class="text-[10px] font-black uppercase mt-1">Credit</span>
+                    </button>
+                    <button onclick="openPartialPay('Bank')"
+                        class="h-16 bg-sky-400 text-white rounded-xl flex flex-col items-center justify-center shadow-md touch-btn border-b-2 border-sky-600">
+                        <i data-lucide="landmark" class="w-4 h-4"></i>
+                        <span class="text-[10px] font-black uppercase mt-1">Bank</span>
+                    </button>
+                    <button onclick="openPartialPay('Coupon')"
+                        class="h-16 bg-sky-400 text-white rounded-xl flex flex-col items-center justify-center shadow-md touch-btn border-b-2 border-sky-600">
+                        <i data-lucide="ticket" class="w-4 h-4"></i>
+                        <span class="text-[10px] font-black uppercase mt-1">Coupon</span>
+                    </button>
+                </div>
+
+                <div
+                    class="border border-slate-200 rounded-xl overflow-hidden shadow-inner bg-white h-48 flex flex-col">
+                    <table class="w-full text-left border-collapse table-fixed">
+                        <thead class="sticky top-0 z-10">
+                            <tr
+                                class="bg-slate-100 border-b border-slate-200 text-[9px] font-black uppercase text-slate-500">
+                                <th class="px-3 py-2 w-1/4">Type</th>
+                                <th class="px-3 py-2 w-1/4">Amount</th>
+                                <th class="px-3 py-2 w-1/3">Note</th>
+                                <th class="px-3 py-2 text-center w-12"></th>
+                            </tr>
+                        </thead>
+                    </table>
+                    <div class="overflow-y-auto flex-1 custom-scrollbar">
+                        <table class="w-full text-left border-collapse table-fixed">
+                            <tbody id="multiModeTableBody" class="text-[11px] font-bold text-slate-700">
+                                <tr class="border-b border-slate-50">
+                                    <td class="px-3 py-2 w-1/4">Cash A/c</td>
+                                    <td class="px-3 py-2 w-1/4">500.00</td>
+                                    <td class="px-3 py-2 w-1/3 text-slate-400 italic truncate">Initial Pay</td>
+                                    <td class="px-3 py-2 text-center w-12">
+                                        <button class="text-red-500 active:scale-90 transition-transform"><i
+                                                data-lucide="x-circle" class="w-4 h-4"></i></button>
+                                    </td>
+                                </tr>
+                                <tr class="border-b border-slate-50">
+                                    <td class="px-3 py-2 w-1/4">UPI</td>
+                                    <td class="px-3 py-2 w-1/4">334.50</td>
+                                    <td class="px-3 py-2 w-1/3 text-slate-400 italic truncate">Txn_981223</td>
+                                    <td class="px-3 py-2 text-center w-12">
+                                        <button class="text-red-500 active:scale-90 transition-transform"><i
+                                                data-lucide="x-circle" class="w-4 h-4"></i></button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <button onclick="handleMultiModeSettle()"
+                    class="w-full py-4 bg-[#006ea6] text-white font-black rounded-xl text-lg shadow-lg active:scale-95 transition-all touch-btn">
+                    Complete Payment
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="partialPayModal" class="fixed inset-0 z-[150] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-700/20 backdrop-blur-md" onclick="closePartialPay()"></div>
+        <div
+            class="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden flex animate-in slide-in-from-bottom-10 duration-300">
+
+            <div class="flex-1 p-8 space-y-6">
+                <h5 id="partialPayTitle" class="font-black text-slate-800 text-lg">Add Amount - UPI</h5>
+
+                <div class="space-y-4">
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-black text-slate-400 uppercase">Amount</label>
+                        <div class="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4">
+                            <input type="number" id="partialAmountInput"
+                                class="w-full bg-transparent text-right text-3xl font-black text-slate-800 focus:outline-none"
+                                value="334.50">
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-black text-slate-400 uppercase">Reference</label>
+                        <div class="bg-slate-50 border-2 border-slate-100 rounded-2xl p-3">
+                            <input type="text" id="partialRefInput"
+                                class="w-full bg-transparent text-sm italic font-bold text-slate-600 focus:outline-none"
+                                placeholder="Enter Ref #">
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center pt-2">
+                        <span class="text-xs font-bold text-slate-400">Balance</span>
+                        <span class="text-xl font-black text-slate-800">0.00</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-4">
+                    <button onclick="closePartialPay()"
+                        class="flex-1 h-14 bg-red-500 text-white rounded-2xl flex items-center justify-center touch-btn">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                    <button onclick="confirmPartialPay()"
+                        class="flex-1 h-14 bg-emerald-500 text-white rounded-2xl flex items-center justify-center touch-btn">
+                        <i data-lucide="check" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="w-64 bg-slate-50 p-6 border-l border-slate-100 grid grid-cols-3 gap-2">
+                <script>
+                    const numpadGridSet = document.currentScript.parentElement;
+                    [1, 2, 3, 4, 5, 6, 7, 8, 9, '.', 0].forEach(n => {
+                        document.write(`<button onclick="appendPartial('${n}')" class="aspect-square bg-white border border-slate-200 rounded-xl font-black text-xl text-slate-700 shadow-sm active:bg-indigo-50 touch-btn">${n}</button>`);
+                    });
+                </script>
+                <button onclick="backspacePartial()"
+                    class="aspect-square bg-white border border-slate-200 rounded-xl font-black text-slate-400 flex items-center justify-center active:bg-slate-200 touch-btn">
+                    <i data-lucide="delete" class="w-6 h-6"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cancelKOTModal" class="fixed inset-0 z-[200] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+        <div
+            class="relative bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-8 text-center animate-in zoom-in duration-150">
+            <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 bg-rose-100 text-rose-600">
+                <i data-lucide="alert-triangle" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-black text-slate-800 mb-2">Cancel Full KOT?</h3>
+            <p class="text-slate-500 text-sm mb-8">This will cancel the active running KOT entirely. This action is
+                irreversible.</p>
+            <div class="flex gap-3">
+                <button onclick="closeCancelKOTModal()"
+                    class="flex-1 py-4 bg-slate-100 text-slate-500 font-bold rounded-2xl touch-btn">Back</button>
+                <button onclick="confirmCancelKOT()"
+                    class="flex-1 py-4 bg-rose-600 text-white font-black rounded-2xl shadow-lg touch-btn">Cancel
+                    KOT</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cancelItemModal" class="fixed inset-0 z-[200] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onclick="closeCancelItemModal()"></div>
+        <div class="relative bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-6 animate-in zoom-in duration-200">
+            <h4 class="text-center font-black text-slate-800 mb-4 text-xl">Cancel Item</h4>
+            <div class="mb-4">
+                <label class="text-xs font-bold text-slate-500 mb-1 block">Quantity to Cancel</label>
+                <input type="number" id="cancelQtyInput" min="1"
+                    class="w-full h-12 bg-slate-50 rounded-xl px-4 font-bold text-slate-700 border border-slate-200 outline-none focus:border-rose-500">
+            </div>
+            <div class="mb-6">
+                <label class="text-xs font-bold text-slate-500 mb-1 block">Reason for Cancellation</label>
+                <input type="text" id="cancelReasonInput" placeholder="e.g. Customer changed mind"
+                    class="w-full h-12 bg-slate-50 rounded-xl px-4 font-bold text-slate-700 border border-slate-200 outline-none focus:border-rose-500">
+            </div>
+            <div class="flex gap-2">
+                <button onclick="closeCancelItemModal()"
+                    class="flex-1 h-12 bg-slate-100 text-slate-600 font-bold rounded-xl active:bg-slate-200 transition-colors touch-btn">Close</button>
+                <button onclick="confirmCancelItem()"
+                    class="flex-[2] h-12 bg-rose-600 text-white font-black rounded-xl shadow-lg active:scale-95 transition-transform touch-btn">Cancel
+                    Item</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="itemInfoModal" class="fixed inset-0 z-[200] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onclick="closeItemInfoModal()"></div>
+        <div
+            class="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-6 animate-in zoom-in duration-200 flex flex-col max-h-[90vh]">
+            <h4 class="text-center font-black text-slate-800 mb-4 text-xl" id="itemInfoTitle">Item Extras</h4>
+
+            <div class="mb-4">
+                <label class="text-xs font-bold text-slate-500 mb-1 block">Cooking Instructions</label>
+                <div class="relative">
+                    <input type="text" id="cookingInstructionSearch" onkeydown="handleCookingInstructionEnter(event)"
+                        oninput="searchCookingInstructions(this.value)"
+                        placeholder="Search or type instruction & press enter..."
+                        class="w-full h-12 bg-slate-50 rounded-xl pl-4 pr-10 font-bold text-slate-700 border border-slate-200 outline-none focus:border-indigo-500">
+                    <button onclick="addCookingInstructionFromInput()"
+                        class="absolute right-2 top-2 w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center active:scale-90 transition-transform touch-btn">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div id="cookingInstructionSuggestions"
+                    class="mt-1 bg-white border border-slate-200 rounded-xl shadow-lg absolute w-[calc(100%-3rem)] z-10 max-h-32 overflow-y-auto hidden">
+                    <!-- Suggestions -->
+                </div>
+            </div>
+
+            <div id="activeInstructionsGrid"
+                class="flex flex-wrap gap-2 mb-6 min-h-[3rem] p-2 bg-slate-50 rounded-xl border border-slate-100">
+                <!-- Chips -->
+            </div>
+
+            <div class="flex items-center justify-between mb-8 p-4 bg-orange-50 rounded-xl border border-orange-100">
+                <div>
+                    <h5 class="font-black text-slate-800">Mark as Parcel</h5>
+                    <p class="text-[10px] font-bold text-slate-500 uppercase">Pack this item separately</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="itemParcelToggle" class="sr-only peer">
+                    <div
+                        class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500">
+                    </div>
+                </label>
+            </div>
+
+            <div class="flex gap-2 mt-auto">
+                <button onclick="closeItemInfoModal()"
+                    class="flex-1 h-14 bg-slate-100 text-slate-600 font-bold rounded-xl active:bg-slate-200 transition-colors touch-btn">Cancel</button>
+                <button onclick="saveItemInfo()"
+                    class="flex-[2] h-14 bg-indigo-600 text-white font-black rounded-xl shadow-lg active:scale-95 transition-transform touch-btn">Save
+                    Details</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRunningKOT = true; // Hardcoded to test (try true/false)
+        let cartItems = [];
+        let currentSessionTime = null;
+        let cartDiscount = 0;
+        let paxNumber = 8;
+        let selectedTableId = 'T12';
+        let kotNotes = '';
+        let orderType = 'DI'; // DI: Dine In, TA: Take Away, DE: Delivery
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const typeParam = urlParams.get('type');
+            if (typeParam) {
+                orderType = typeParam;
+            }
+
+            if (isRunningKOT) {
+                const btnTable = document.getElementById('btn-table');
+                btnTable.disabled = true;
+                btnTable.classList.add('opacity-50', 'cursor-not-allowed');
+                btnTable.classList.remove('touch-btn');
+            }
+            document.getElementById('pax-btn-text').innerText = `Pax: ${paxNumber}`;
+            document.getElementById('table-btn-text').innerText = selectedTableId;
+            document.getElementById('paxTitle').innerText = selectedTableId;
+
+            setOrderType(orderType, false); // Initialize layout
+            initDatabase();
+            renderCart();
+        });
+
+        // Massive Dynamic Database Creation & Handling
+        let groupsDb = [];
+        let itemsDb = [];
+        let activeGroupId = null;
+
+        function initDatabase() {
+            // Real-world Organizers (Collections of specific fast-moving/special items)
+            groupsDb = [
+                { id: 'O1', name: "Today's Specials", type: 'organizer', items: ['I1', 'I5', 'I13', 'I17', 'I28'] },
+                { id: 'O2', name: 'Fast Moving', type: 'organizer', items: ['I9', 'I10', 'I13', 'I21', 'I24'] },
+                { id: 'O3', name: 'Breakfast', type: 'organizer', items: ['I21', 'I22', 'I15'] },
+                { id: 'O4', name: 'Chef Recommendations', type: 'organizer', items: ['I6', 'I14', 'I20', 'I26'] },
+
+                // Real-world Item Groups (Master categories)
+                { id: 'G1', name: 'Starters (Veg)', type: 'group' },
+                { id: 'G2', name: 'Starters (Non-Veg)', type: 'group' },
+                { id: 'G3', name: 'Indian Breads', type: 'group' },
+                { id: 'G4', name: 'Rice & Biryani', type: 'group' },
+                { id: 'G5', name: 'Curries', type: 'group' },
+                { id: 'G6', name: 'Hot Beverages', type: 'group' },
+                { id: 'G7', name: 'Cold Beverages', type: 'group' },
+                { id: 'G8', name: 'Ice Creams', type: 'group' }
+            ];
+
+            // Real-world Items Data with English, Arabic, Diet Type, and localized Images
+            itemsDb = [
+                // Starters (Veg)
+                { id: 'I1', name: 'Paneer Tikka', arName: 'بانير تيكا', price: '250.00', groupId: 'G1', dietType: 'veg', image: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=400' },
+                { id: 'I2', name: 'Veg Spring Rolls', arName: 'سبرينغ رول نباتي', price: '180.00', groupId: 'G1', dietType: 'veg', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=400' },
+                { id: 'I3', name: 'Gobi Manchurian', arName: 'جوبي منشوريان', price: '200.00', groupId: 'G1', dietType: 'veg', image: 'https://images.unsplash.com/photo-1625398407796-a1103c800889?w=400' },
+                { id: 'I4', name: 'Crispy Corn', arName: 'ذرة مقرمشة', price: '160.00', groupId: 'G1', dietType: 'veg', image: 'https://images.unsplash.com/photo-1635352723654-7221376df173?w=400' },
+
+                // Starters (Non-Veg)
+                { id: 'I5', name: 'Chicken 65', arName: 'دجاج 65', price: '280.00', groupId: 'G2', dietType: 'non-veg', image: 'https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?w=400', openItem: true },
+                { id: 'I6', name: 'Fish Tikka', arName: 'تيكا السمك', price: '350.00', groupId: 'G2', dietType: 'non-veg', image: 'https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=400' },
+                { id: 'I7', name: 'Mutton Seekh Kebab', arName: 'كباب لحم الضأن', price: '400.00', groupId: 'G2', dietType: 'non-veg', image: 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400' },
+                { id: 'I8', name: 'Egg Bonda', arName: 'بوندا البيض', price: '120.00', groupId: 'G2', dietType: 'egg', image: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400' },
+
+                // Indian Breads
+                { id: 'I9', name: 'Butter Naan', arName: 'خبز نان بالزبدة', price: '60.00', groupId: 'G3', dietType: 'veg', image: 'https://images.unsplash.com/photo-1601050690597-df0568a70950?w=400' },
+                { id: 'I10', name: 'Garlic Naan', arName: 'نان بالثوم', price: '75.00', groupId: 'G3', dietType: 'veg', image: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=400' },
+                { id: 'I11', name: 'Tandoori Roti', arName: 'تندوري روتي', price: '40.00', groupId: 'G3', dietType: 'veg', image: 'https://images.unsplash.com/photo-1658428172922-a589e578cecf?w=400' },
+                { id: 'I12', name: 'Lachha Paratha', arName: 'لاخا باراثا', price: '65.00', groupId: 'G3', dietType: 'veg', image: 'https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?w=400' },
+
+                // Rice & Biryani
+                { id: 'I13', name: 'Hyderabadi Chicken Biryani', arName: 'برياني دجاج حيدر أباد', price: '350.00', groupId: 'G4', dietType: 'non-veg', image: 'https://images.unsplash.com/photo-1633945274405-b6c8069047b0?w=400' },
+                { id: 'I14', name: 'Mutton Mandi', arName: 'مندي لحم', price: '550.00', groupId: 'G4', dietType: 'non-veg', image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=400' },
+                { id: 'I15', name: 'Veg Pulao', arName: 'بيلاو خضار', price: '220.00', groupId: 'G4', dietType: 'veg', image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400' },
+                { id: 'I16', name: 'Egg Fried Rice', arName: 'أرز مقلي بالبيض', price: '200.00', groupId: 'G4', dietType: 'egg', image: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400' },
+
+                // Curries
+                { id: 'I17', name: 'Butter Chicken', arName: 'دجاج بالزبدة', price: '380.00', groupId: 'G5', dietType: 'non-veg', image: 'https://images.unsplash.com/photo-1588166524941-3bf61a9c41aa?w=400' },
+                { id: 'I18', name: 'Paneer Butter Masala', arName: 'بانير مسالا بالزبدة', price: '300.00', groupId: 'G5', dietType: 'veg', image: 'https://images.unsplash.com/photo-1552590635-27c2c2128abf?w=400' },
+                { id: 'I19', name: 'Dal Makhani', arName: 'دال مخاني', price: '240.00', groupId: 'G5', dietType: 'veg', image: 'https://images.unsplash.com/photo-1627043813956-655e094770fc?w=400' },
+                { id: 'I20', name: 'Fish Curry', arName: 'كاري سمك', price: '420.00', groupId: 'G5', dietType: 'non-veg', image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=400' },
+
+                // Hot Beverages
+                { id: 'I21', name: 'Masala Chai', arName: 'شاي ماسالا', price: '40.00', groupId: 'G6', dietType: 'veg', image: 'https://images.unsplash.com/photo-1561336313-0bd5e0b27ec8?w=400' },
+                { id: 'I22', name: 'Filter Coffee', arName: 'قهوة مقطرة', price: '50.00', groupId: 'G6', dietType: 'veg', image: 'https://images.unsplash.com/photo-1601666427320-c3ad5df3b26c?w=400' },
+                { id: 'I23', name: 'Hot Chocolate', arName: 'شوكولاتة ساخنة', price: '120.00', groupId: 'G6', dietType: 'veg', image: 'https://images.unsplash.com/photo-1542990253-ab47db65391c?w=400' },
+
+                // Cold Beverages
+                { id: 'I24', name: 'Fresh Lime Soda', arName: 'صودا الليمون الطازجة', price: '80.00', groupId: 'G7', dietType: 'veg', image: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=400' },
+                { id: 'I25', name: 'Mango Lassi', arName: 'لاسي المانجو', price: '110.00', groupId: 'G7', dietType: 'veg', image: 'https://images.unsplash.com/photo-1628173573663-125ebf91757d?w=400' },
+                { id: 'I26', name: 'Mint Mojito', arName: 'موهيتو بالنعناع', price: '150.00', groupId: 'G7', dietType: 'veg', image: 'https://images.unsplash.com/photo-1551538827-9c037cb4f32a?w=400' },
+
+                // Ice Creams
+                { id: 'I27', name: 'Vanilla Bean Ice Cream', arName: 'آيس كريم الفانيليا', price: '140.00', groupId: 'G8', dietType: 'veg', image: 'https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?w=400' },
+                { id: 'I28', name: 'Chocolate Fudge Brownie', arName: 'شوكولاتة براوني', price: '220.00', groupId: 'G8', dietType: 'veg', image: 'https://images.unsplash.com/photo-1551024506-0bccd828d307?w=400' }
+            ];
+
+            // Set default active group and render
+            activeGroupId = groupsDb[0].id;
+            renderGroups();
+            renderItems(filterQuery = '', activeGroupId);
+        }
+
+        function scrollGroups(offset) {
+            const container = document.getElementById('groupsContainer');
+            container.scrollBy({ top: offset, behavior: 'smooth' });
+        }
+
+        function selectGroup(groupId) {
+            activeGroupId = groupId;
+            // Clear searches on group change
+            document.getElementById('searchItemInput').value = '';
+            document.getElementById('searchGroupInput').value = '';
+            renderGroups();
+            renderItems(filterQuery = '', activeGroupId);
+        }
+
+        function filterGroups() {
+            renderGroups(document.getElementById('searchGroupInput').value);
+        }
+
+        function filterItems() {
+            renderItems(document.getElementById('searchItemInput').value);
+        }
+
+        function renderGroups(filterQuery = '') {
+            const container = document.getElementById('groupsContainer');
+            container.innerHTML = '';
+
+            const lowerQuery = filterQuery.toLowerCase();
+            const filteredGroups = groupsDb.filter(g => g.name.toLowerCase().includes(lowerQuery));
+
+            if (filteredGroups.length === 0) {
+                container.innerHTML = `<p class="text-xs text-center text-slate-400 p-4 font-bold">No groups found</p>`;
+                return;
+            }
+
+            filteredGroups.forEach(g => {
+                const isActive = g.id === activeGroupId;
+                let btnClasses = '';
+
+                if (g.type === 'organizer') {
+                    btnClasses = isActive
+                        ? 'bg-fuchsia-600 text-white border-fuchsia-700 shadow-xl'
+                        : 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200';
+                } else {
+                    btnClasses = isActive
+                        ? 'bg-sky-600 text-white border-sky-700 shadow-xl'
+                        : 'bg-sky-100 text-sky-800 border-sky-200';
+                }
+
+                container.innerHTML += `
+                    <button onclick="selectGroup('${g.id}')" 
+                        class="w-full min-h-[4rem] px-2 py-4 ${btnClasses} rounded-2xl font-black text-xs uppercase shadow-md border touch-btn flex-shrink-0 transition-all">
+                        ${g.name}
+                    </button>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        function renderItems(filterQuery = '', activeGroupId) {
+            const container = document.getElementById('itemsContainer');
+            container.innerHTML = '';
+
+            const lowerQuery = filterQuery.toLowerCase();
+            let filteredItems = itemsDb;
+            // Active group logic
+            if (lowerQuery) {
+                // Global search override
+                filteredItems = filteredItems.filter(i => i.name.toLowerCase().includes(lowerQuery));
+            } else if (activeGroupId) {
+                const selectedEntity = groupsDb.find(g => g.id === activeGroupId);
+
+                if (selectedEntity && selectedEntity.type === 'organizer') {
+                    // Gather items using the organizer's item ID array
+                    const orgItems = selectedEntity.items || [];
+                    filteredItems = filteredItems.filter(i => orgItems.includes(i.id));
+                } else {
+                    // It's a normal item group filter
+                    filteredItems = filteredItems.filter(i => i.groupId === activeGroupId);
+                }
+            }
+
+            if (filteredItems.length === 0) {
+                container.innerHTML = `<p class="col-span-full text-center text-slate-400 mt-10 font-bold">No items found.</p>`;
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            filteredItems.forEach(item => {
+                const itemDiv = document.createElement('div');
+
+                // Define dietary visual elements
+                let borderDietColor = 'border-slate-200';
+
+
+                if (item.dietType === 'veg') {
+                    borderDietColor = 'border-emerald-500';
+                } else if (item.dietType === 'non-veg') {
+                    borderDietColor = 'border-rose-500';
+                } else if (item.dietType === 'egg') {
+                    borderDietColor = 'border-amber-500';
+                }
+
+                itemDiv.className = "flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm touch-btn cursor-pointer overflow-hidden group hover:shadow-md transition-all h-full";
+                itemDiv.onclick = () => { addToCart(item.id) };
+                itemDiv.innerHTML = `
+                    <div class="relative w-full aspect-[4/3] bg-slate-100 overflow-hidden border-b border-slate-100">
+                        <img src="${item.image}" alt="item" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400x300/e2e8f0/64748b?text=No+Image';" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                  
+                        <div class="absolute bottom-2 right-2 bg-white/95 backdrop-blur px-2 py-1 rounded-lg shadow-md border border-slate-100">
+                            <span class="text-sm font-black text-indigo-600">₹ ${item.price}</span>
+                        </div>
+                    </div>
+                    <div class="p-3 flex flex-col flex-1 border-l-[6px] ${borderDietColor} bg-white">
+                        ${item.arName ? `<p dir="rtl" class="text-[11px] font-bold text-slate-400 mb-1 leading-none font-arabic">${item.arName}</p>` : ''}
+                        <h3 class="font-black text-slate-800 text-sm leading-tight line-clamp-2 mb-1">${item.name}</h3>
+                    </div>
+                `;
+                fragment.appendChild(itemDiv);
+            });
+
+            container.appendChild(fragment);
+        }
+
+        // Helper to get current time
+        function getFormattedTime() {
+            return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+        }
+
+        // Cart Management Logic
+        function addToCart(itemId) {
+            const item = itemsDb.find(i => i.id === itemId);
+            if (!item) return;
+
+            if (!currentSessionTime) {
+                currentSessionTime = getFormattedTime();
+            }
+
+            // Only merge into UNSAVED items of the CURRENT session
+            const existing = cartItems.find(c => c.item.id === itemId && !c.isSaved && c.sessionTime === currentSessionTime);
+
+            if (existing) {
+                existing.qty++;
+            } else {
+                cartItems.push({
+                    item: item,
+                    qty: 1,
+                    price: parseFloat(item.price),
+                    modifiers: [],
+                    isSaved: false,
+                    isParcel: false,
+                    sessionTime: currentSessionTime
+                });
+            }
+            renderCart();
+            // Optional subtle feedback so it's not spammy
+            // notify(`${item.name} added to cart`, 'success'); 
+        }
+
+        function updateCartQty(index, delta) {
+            if (cartItems[index].qty + delta > 0) {
+                cartItems[index].qty += delta;
+            } else {
+                cartItems.splice(index, 1);
+            }
+            renderCart();
+        }
+
+        function removeCartItem(index) {
+            cartItems.splice(index, 1);
+            renderCart();
+        }
+
+        function handleRemoveCartItem(index) {
+            if (isRunningKOT && cartItems[index].isSaved) {
+                openCancelItemModal(index);
+            } else {
+                removeCartItem(index);
+            }
+        }
+
+        function manualUpdateQty(index, value) {
+            let newQty = parseInt(value);
+            if (isNaN(newQty) || newQty <= 0) newQty = 1;
+            cartItems[index].qty = newQty;
+            renderCart();
+        }
+
+        function manualUpdatePrice(index, value) {
+            let newPrice = parseFloat(value);
+            if (isNaN(newPrice) || newPrice < 0) newPrice = 0;
+            cartItems[index].price = newPrice;
+            renderCart();
+        }
+
+        // Cancel Item Logic
+        let activeCancelItemIndex = -1;
+        function openCancelItemModal(index) {
+            activeCancelItemIndex = index;
+            const cartItem = cartItems[index];
+            document.getElementById('cancelQtyInput').max = cartItem.qty;
+            document.getElementById('cancelQtyInput').value = cartItem.qty;
+            document.getElementById('cancelReasonInput').value = '';
+            document.getElementById('cancelItemModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeCancelItemModal() {
+            document.getElementById('cancelItemModal').classList.add('hidden');
+        }
+
+        function confirmCancelItem() {
+            const qtyToCancel = parseInt(document.getElementById('cancelQtyInput').value);
+            const reason = document.getElementById('cancelReasonInput').value;
+
+            if (!reason) {
+                notify("Please enter a cancellation reason", "error");
+                return;
+            }
+
+            if (qtyToCancel > 0) {
+                if (qtyToCancel >= cartItems[activeCancelItemIndex].qty) {
+                    cartItems.splice(activeCancelItemIndex, 1);
+                } else {
+                    cartItems[activeCancelItemIndex].qty -= qtyToCancel;
+                }
+                renderCart();
+                notify(`Item cancelled. Print sent to kitchen. Reason: ${reason}`, "warning");
+                closeCancelItemModal();
+            }
+        }
+
+        // Item Extras Logic
+        let activeInfoItemIndex = -1;
+        const cookingInstructionDb = ["Less Spicy", "More Spicy", "No Onion", "No Garlic", "Extra Cheese", "Well Done", "Medium Rare"];
+
+        function openItemInfoModal(index) {
+            activeInfoItemIndex = index;
+            const cartItem = cartItems[index];
+            document.getElementById('itemInfoTitle').innerText = cartItem.item.name + ' Extras';
+            document.getElementById('cookingInstructionSearch').value = '';
+            document.getElementById('itemParcelToggle').checked = cartItem.isParcel || false;
+            renderCookingInstructionChips();
+            document.getElementById('itemInfoModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeItemInfoModal() {
+            document.getElementById('itemInfoModal').classList.add('hidden');
+            document.getElementById('cookingInstructionSuggestions').classList.add('hidden');
+        }
+
+        function renderCookingInstructionChips() {
+            const grid = document.getElementById('activeInstructionsGrid');
+            const modifiers = cartItems[activeInfoItemIndex].modifiers || [];
+            grid.innerHTML = '';
+            if (modifiers.length === 0) {
+                grid.innerHTML = '<p class="text-xs text-slate-400 font-bold p-2">No instructions added.</p>';
+                return;
+            }
+            modifiers.forEach((m, idx) => {
+                grid.innerHTML += `
+                    <div class="bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2">
+                        ${m}
+                        <button onclick="removeCookingInstruction(${idx})" class="text-indigo-400 hover:text-indigo-600 focus:outline-none"><i data-lucide="x" class="w-3 h-3"></i></button>
+                    </div>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        function removeCookingInstruction(idx) {
+            cartItems[activeInfoItemIndex].modifiers.splice(idx, 1);
+            renderCookingInstructionChips();
+        }
+
+        function handleCookingInstructionEnter(e) {
+            if (e.key === 'Enter') {
+                addCookingInstructionFromInput();
+            }
+        }
+
+        function addCookingInstructionFromInput() {
+            const input = document.getElementById('cookingInstructionSearch');
+            const val = input.value.trim();
+            if (val) {
+                addCookingInstruction(val);
+                input.value = '';
+                document.getElementById('cookingInstructionSuggestions').classList.add('hidden');
+            }
+        }
+
+        function searchCookingInstructions(query) {
+            const suggBox = document.getElementById('cookingInstructionSuggestions');
+            if (query.length === 0) {
+                suggBox.classList.add('hidden');
+                return;
+            }
+            const filtered = cookingInstructionDb.filter(i => i.toLowerCase().includes(query.toLowerCase()));
+            if (filtered.length > 0) {
+                suggBox.innerHTML = filtered.map(f => `
+                    <div onclick="addCookingInstruction('${f}'); document.getElementById('cookingInstructionSearch').value=''; document.getElementById('cookingInstructionSuggestions').classList.add('hidden');" class="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-bold text-slate-600 border-b border-slate-100 last:border-0">${f}</div>
+                `).join('');
+                suggBox.classList.remove('hidden');
+            } else {
+                suggBox.classList.add('hidden');
+            }
+        }
+
+        function addCookingInstruction(text) {
+            const modifiers = cartItems[activeInfoItemIndex].modifiers;
+            if (!modifiers.includes(text)) {
+                modifiers.push(text);
+                renderCookingInstructionChips();
+            }
+        }
+
+        function saveItemInfo() {
+            cartItems[activeInfoItemIndex].isParcel = document.getElementById('itemParcelToggle').checked;
+            renderCart();
+            closeItemInfoModal();
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cartContainer');
+            if (!container) return;
+            container.innerHTML = '';
+
+            let subTotal = 0;
+            let lastSessionTime = null;
+
+            cartItems.forEach((cartItem, index) => {
+                const item = cartItem.item;
+                const price = cartItem.price;
+                const total = (price * cartItem.qty).toFixed(2);
+                subTotal += parseFloat(total);
+
+                // Add Session Header if time changes
+                if (cartItem.sessionTime !== lastSessionTime) {
+                    const headerHtml = `
+                        <div class="px-4 py-1 mt-3 mb-1 text-[10px] font-black text-white ${cartItem.isSaved ? 'bg-slate-500' : 'bg-indigo-500'} border border-slate-100 rounded-lg shadow-sm flex justify-between items-center animate-in fade-in duration-300">
+                            <span>${cartItem.isSaved ? 'SAVED KOT' : 'NEW ITEMS'}</span>
+                            <span class="opacity-80">${cartItem.sessionTime}</span>
+                        </div>
+                    `;
+                    container.innerHTML += headerHtml;
+                    lastSessionTime = cartItem.sessionTime;
+                }
+
+                const modifiersHtml = cartItem.modifiers.map(m => `<p class="text-[8px] bg-blue-100 text-slate-500 font-bold uppercase px-1.5 py-0.5 rounded-md border border-slate-200">${m}</p>`).join('');
+                const parcelHtml = cartItem.isParcel ? `<p class="text-[9px] font-bold text-emerald-600 flex items-center gap-1 mt-1 border border-emerald-200 bg-emerald-50 px-1 inline-flex rounded"><i data-lucide="check-circle" class="w-3 h-3"></i><span>Parcel</span></p>` : '';
+
+                const itemHtml = `
+                <div class="bg-white border border-slate-100 p-2 grid grid-cols-12 items-center rounded-xl shadow-sm hover:bg-orange-100 mb-1 animate-in fade-in duration-150">
+                    <div class="col-span-1 flex justify-center">
+                        <button onclick="handleRemoveCartItem(${index})" class="w-10 h-10 bg-rose-50 text-rose-500 rounded-lg flex items-center justify-center touch-active active:scale-90 transition-all">
+                            <i data-lucide="circle-x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <div class="col-span-4 pl-3">
+                        <p class="text-sm font-black text-slate-800 leading-tight">${item.name}</p>
+                        ${modifiersHtml ? `<div class="flex flex-wrap gap-1 mt-1">${modifiersHtml}</div>` : ''}
+                        ${parcelHtml}
+                    </div>
+
+                    <div class="col-span-3 flex items-center justify-center gap-1.5 block">
+                        <button onclick="updateCartQty(${index}, -1)" class="w-8 h-8 bg-rose-500 text-white rounded-lg flex items-center justify-center touch-active shadow-sm active:scale-90">
+                            <i data-lucide="minus" class="w-4 h-4"></i>
+                        </button>
+
+                        <input type="number" min="1" onchange="manualUpdateQty(${index}, this.value)" class="w-10 h-8 bg-slate-50 rounded-lg border border-slate-200 outline-none text-center font-black text-sm text-slate-700" value="${cartItem.qty}">
+
+                        <button onclick="updateCartQty(${index}, 1)" class="w-8 h-8 bg-emerald-600 text-white rounded-lg flex items-center justify-center touch-active shadow-sm active:scale-90">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <div class="col-span-3 pr-2 flex flex-row items-center justify-end gap-2">
+                        ${item.openItem
+                        ? `<input type="number" min="0" onchange="manualUpdatePrice(${index}, this.value)" class="w-14 h-8 bg-amber-50 rounded-lg border border-amber-200 p-1 font-bold text-xs text-slate-700 text-right outline-none focus:border-amber-500" value="${price.toFixed(2)}">`
+                        : `<div class="w-14 h-8 bg-slate-50 rounded-lg border border-slate-200 p-1 font-bold text-xs text-slate-500 text-right flex items-center justify-end break-all">${price.toFixed(2)}</div>`
+                    }
+                        <p class="text-sm font-black text-slate-900 w-14 text-right break-all">${total}</p>
+                    </div>
+
+                    <div class="col-span-1 flex justify-end">
+                        <button onclick="openItemInfoModal(${index})" class="w-10 h-10 ${cartItem.modifiers.length > 0 || cartItem.isParcel ? 'bg-indigo-600 text-white' : 'bg-blue-50 text-blue-500'} rounded-lg flex items-center justify-center touch-active">
+                            <i data-lucide="info" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>`;
+                container.innerHTML += itemHtml;
+            });
+
+            // Update Summary
+            const tax = subTotal * 0.05; // Mock 5% tax
+            const finalTotal = subTotal + tax - cartDiscount;
+
+            document.getElementById('cartSubtotal').innerText = subTotal.toFixed(2);
+            document.getElementById('cartTax').innerText = tax.toFixed(2);
+            document.getElementById('cartDiscount').innerText = cartDiscount > 0 ? '-' + cartDiscount.toFixed(2) : '0.00';
+            document.getElementById('cartTotal').innerText = '₹ ' + finalTotal.toFixed(2);
+
+            lucide.createIcons();
+        }
+
+        // Order Type Set Logic
+        function setOrderType(type, warn = true) {
+
+            if (warn && cartItems.length > 0 && orderType !== type) {
+                // Optional: Can add a confirmation check here before switching types with active cart items
+            }
+
+            orderType = type;
+
+            // Re-style buttons
+            const types = ['DI', 'TA', 'DE'];
+            types.forEach(t => {
+                const btn = document.getElementById(`btn-type-${t}`);
+                if (t === type) {
+                    btn.classList.add('bg-emerald-600');
+                    btn.classList.remove('bg-slate-600');
+                } else {
+                    btn.classList.add('bg-slate-600');
+                    btn.classList.remove('bg-emerald-600');
+                }
+            });
+
+            // Re-arrange layout
+            const grid = document.getElementById('kot-grid-buttons');
+            const btnTable = document.getElementById('btn-table');
+            const btnPax = document.getElementById('btn-pax');
+
+            if (type === 'TA' || type === 'DE') {
+                // Hide Table and Pax
+                btnTable.classList.add('hidden');
+                btnPax.classList.add('hidden');
+                grid.classList.remove('grid-cols-4');
+                grid.classList.add('grid-cols-2');
+            } else {
+                // Show Table and Pax
+                btnTable.classList.remove('hidden');
+                btnPax.classList.remove('hidden');
+                grid.classList.remove('grid-cols-2');
+                grid.classList.add('grid-cols-4');
+            }
+        }
+
+        // Table Button Logic
+        function handleTableClick() {
+            if (isRunningKOT) return;
+            if (cartItems.length === 0) {
+                window.location.href = 'tables_view.html';
+            } else {
+                document.getElementById('confirmDiscardModal').classList.remove('hidden');
+                lucide.createIcons();
+            }
+        }
+        function closeConfirmDiscard() { document.getElementById('confirmDiscardModal').classList.add('hidden'); }
+        function proceedToTableView() { window.location.href = 'tables_view.html'; }
+
+        // Customer Modal Logic
+        function openCustomerModal() { document.getElementById('customerModal').classList.remove('hidden'); lucide.createIcons(); }
+        function closeCustomerModal() { document.getElementById('customerModal').classList.add('hidden'); }
+        function saveCustomerModal() { closeCustomerModal(); notify("Customer Details Saved", "success"); }
+
+        // PAX Modal Logic
+        function openPaxModal() {
+            document.getElementById('paxTitle').innerText = selectedTableId;
+            document.getElementById('paxInput').value = paxNumber;
+            document.getElementById('paxModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+        function closePaxModal() { document.getElementById('paxModal').classList.add('hidden'); }
+        function paxPress(num) {
+            const input = document.getElementById('paxInput');
+            if (input.value.length < 3) input.value += num;
+        }
+        function paxClear() { document.getElementById('paxInput').value = ''; }
+        function paxBack() {
+            const input = document.getElementById('paxInput');
+            input.value = input.value.slice(0, -1);
+        }
+        function acceptPax() {
+            const val = document.getElementById('paxInput').value;
+            if (!val || val == '0' || parseInt(val) === 0) {
+                notify("Please enter a valid guest count (PAX)", "error");
+                return;
+            }
+            paxNumber = parseInt(val);
+            document.getElementById('pax-btn-text').innerText = `Pax: ${paxNumber}`;
+            closePaxModal();
+            notify(`PAX updated to ${paxNumber}`, "success");
+        }
+
+        // Notes Modal Logic
+        function openNotesModal() {
+            document.getElementById('kotNotesInput').value = kotNotes;
+            document.getElementById('notesModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+        function closeNotesModal() { document.getElementById('notesModal').classList.add('hidden'); }
+        function saveNotesModal() {
+            kotNotes = document.getElementById('kotNotesInput').value;
+            closeNotesModal();
+            notify("KOT Notes Saved", "success");
+        }
+
+        function handleSaveKot() {
+            // Save Kot logic here...
+            if (!isRunningKOT && cartItems.length === 0) {
+                notify("No items to save", "error");
+                return;
+            }
+
+            if (!isRunningKOT && cartItems.length > 0) {
+                openOfferModal();
+                return;
+            }
+
+            showBusy(true, "Saving KOT...");
+
+            // Mark current session items as saved
+            cartItems.forEach(item => {
+                if (!item.isSaved) item.isSaved = true;
+            });
+            currentSessionTime = null; // Reset for next additions if user stays on page
+
+            setTimeout(() => {
+                showBusy(false);
+                notify("KOT Saved Successfully", "success");
+                window.location.href = 'tables_view.html';
+            }, 800);
+        }
+
+        // Cancel Logic
+        function handleCancelButton() {
+            if (!isRunningKOT) {
+                // Not a saved KOT, just reset/clear cart
+                cartItems = [];
+                cartDummyData = [];
+                // empty the innerHTML of the cart items DOM here
+                document.getElementById('offer-items-list').innerHTML = '';
+                renderCart();
+                notify("Cart cleared", "info");
+            } else {
+                // Ask user to cancel full KOT
+                document.getElementById('cancelKOTModal').classList.remove('hidden');
+                lucide.createIcons();
+            }
+        }
+        function closeCancelKOTModal() { document.getElementById('cancelKOTModal').classList.add('hidden'); }
+        function confirmCancelKOT() {
+            closeCancelKOTModal();
+            showBusy(true, "Cancelling KOT...");
+            setTimeout(() => {
+                showBusy(false);
+                notify("KOT Cancelled Successfully", "warning");
+                window.location.href = 'tables_view.html';
+            }, 800);
+        }
+
+        // Bill Summary Toggle Logic
+        function toggleBillSummary() {
+            const summaryDiv = document.getElementById('bill-summary');
+            if (summaryDiv.classList.contains('hidden')) {
+                summaryDiv.classList.remove('hidden');
+            } else {
+                summaryDiv.classList.add('hidden');
+            }
+        }
+
+        // Settlement Logic (imported from table_view)
+        const customerDB = [
+            { name: "Shameer Davood", mobile: "9847012345", address: "Aluva, Kochi", reg: "32AAAAA0000A1Z1" },
+            { name: "Rahul Sharma", mobile: "9995001122", address: "Marine Drive, Kochi", reg: "32BBBBB1111B2Z2" },
+            { name: "Anjali Menon", mobile: "9447223344", address: "Kakkanad, Kochi", reg: "32CCCCC2222C3Z3" },
+            { name: "Justin Joseph", mobile: "9001002003", address: "Edappally, Kochi", reg: "32DDDDD3333D4Z4" },
+            { name: "Suresh Gopi", mobile: "9846000111", address: "Vyttila, Kochi", reg: "32EEEEE4444E5Z5" }
+        ];
+
+        function openSettleModal(title, id) {
+            document.getElementById('settleTitle').innerText = `${title}: ${id || selectedTableId}`;
+            document.getElementById('settleModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeSettleModal() {
+            document.getElementById('settleModal').classList.add('hidden');
+        }
+
+        function handleQuickSettle(method) {
+            closeSettleModal();
+            showBusy(true, 'Processing...');
+            setTimeout(() => {
+                showBusy(false);
+                notify(`Settled with ${method}`, "success");
+                window.location.href = 'tables_view.html';
+            }, 800);
+        }
+
+        function openCreditPopup() {
+            document.getElementById('creditModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeCreditPopup() {
+            document.getElementById('creditModal').classList.add('hidden');
+        }
+
+        function confirmCreditSettle() {
+            const ledger = document.getElementById('ledgerSelect').value;
+            closeCreditPopup();
+            closeSettleModal();
+            notify(`Settled to ${ledger}`, 'success');
+            setTimeout(() => window.location.href = 'tables_view.html', 1000);
+        }
+
+        function openMultiMode() {
+            document.getElementById('multiModeModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeMultiMode() {
+            document.getElementById('multiModeModal').classList.add('hidden');
+        }
+
+        function filterCustomers(query, type, modalType = 'settle') {
+            const listId = modalType === 'settle' ? 'customerSuggestions' : 'mainCustomerSuggestions';
+            const bodyId = modalType === 'settle' ? 'suggestionBody' : 'mainSuggestionBody';
+
+            const listContainer = document.getElementById(listId);
+            const body = document.getElementById(bodyId);
+
+            if (query.length < 2) { listContainer.classList.add('hidden'); return; }
+
+            const filtered = customerDB.filter(c => c[type].toLowerCase().includes(query.toLowerCase()));
+            if (filtered.length > 0) {
+                body.innerHTML = '';
+                filtered.forEach(cust => {
+                    const div = document.createElement('div');
+                    div.className = "grid grid-cols-2 px-4 py-3 border-b border-slate-50 hover:bg-indigo-50 active:bg-indigo-100 cursor-pointer transition-colors";
+                    div.onclick = () => selectSettleCustomer(cust, modalType);
+                    div.innerHTML = `<span class="text-xs font-bold text-slate-700">${cust.name}</span><span class="text-xs font-medium text-slate-500">${cust.mobile}</span>`;
+                    body.appendChild(div);
+                });
+                listContainer.classList.remove('hidden');
+            } else {
+                listContainer.classList.add('hidden');
+            }
+        }
+
+        function selectSettleCustomer(cust, modalType = 'settle') {
+            if (modalType === 'settle') {
+                document.getElementById('settleCustNameInput').value = cust.name;
+                document.getElementById('settleCustMobileInput').value = cust.mobile;
+                document.getElementById('settleCustAddressInput').value = cust.address;
+                document.getElementById('settleCustRegInput').value = cust.reg;
+                document.getElementById('customerSuggestions').classList.add('hidden');
+            } else {
+                document.getElementById('mainCustNameInput').value = cust.name;
+                document.getElementById('mainCustMobileInput').value = cust.mobile;
+                document.getElementById('mainCustAddressInput').value = cust.address;
+                document.getElementById('mainCustRegInput').value = cust.reg;
+                document.getElementById('mainCustomerSuggestions').classList.add('hidden');
+            }
+            notify(`Customer ${cust.name} selected`, "info");
+        }
+
+        document.addEventListener('click', function (e) {
+            const list1 = document.getElementById('customerSuggestions');
+            const list2 = document.getElementById('mainCustomerSuggestions');
+            if (list1 && !e.target.closest('.relative')) list1.classList.add('hidden');
+            if (list2 && !e.target.closest('.relative')) list2.classList.add('hidden');
+        });
+
+        function openPartialPay(method) {
+            document.getElementById('partialPayTitle').innerText = `Add Amount - ${method}`;
+            document.getElementById('partialAmountInput').value = "";
+            document.getElementById('partialPayModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closePartialPay() { document.getElementById('partialPayModal').classList.add('hidden'); }
+
+        function appendPartial(val) {
+            const input = document.getElementById('partialAmountInput');
+            if (val === '.' && input.value.includes('.')) return;
+            input.value += val;
+        }
+
+        function backspacePartial() {
+            const input = document.getElementById('partialAmountInput');
+            input.value = input.value.slice(0, -1);
+        }
+
+        function confirmPartialPay() {
+            const amount = document.getElementById('partialAmountInput').value;
+            const ref = document.getElementById('partialRefInput').value;
+            const method = document.getElementById('partialPayTitle').innerText.split(' - ')[1];
+
+            if (!amount || parseFloat(amount) <= 0) { notify("Enter a valid amount", "error"); return; }
+
+            const tbody = document.getElementById('multiModeTableBody');
+            const newRow = document.createElement('tr');
+            newRow.className = "border-b border-slate-50";
+            newRow.innerHTML = `
+                <td class="px-4 py-3">${method}</td>
+                <td class="px-4 py-3">${parseFloat(amount).toFixed(2)}</td>
+                <td class="px-4 py-3 text-slate-400 italic">${ref || '...'}</td>
+                <td class="px-4 py-3 text-center">
+                    <button onclick="this.parentElement.parentElement.remove()" class="text-red-500"><i data-lucide="x-circle" class="w-5 h-5"></i></button>
+                </td>
+            `;
+            tbody.prepend(newRow);
+            lucide.createIcons();
+            closePartialPay();
+            notify(`${method} payment added`, "success");
+        }
+
+        function handleMultiModeSettle() {
+            closeMultiMode();
+            handleQuickSettle('MultiMode');
+        }
+
+        // --- Offers Modal Logic ---
+        let offerActiveItemIndex = null;
+        let cartDummyData = [
+            { id: 1, name: 'Biryani', isRunningKOT: true, qty: 2, price: 150, appliedOffer: null },
+            { id: 2, name: 'Appam', isRunningKOT: true, qty: 10, price: 25, appliedOffer: null },
+            { id: 3, name: 'Fresh Juice', isRunningKOT: false, qty: 1, price: 80, appliedOffer: null }
+        ];
+
+        const dummyOffers = [
+            { id: 'OFF1', name: 'Buy 1 Get 1 Free', desc: 'Valid only on weekends' },
+            { id: 'OFF2', name: '10% Discount', desc: 'Flat discount on item price' },
+            { id: 'OFF3', name: 'Complimentary Add-on', desc: 'Free raita & salad' },
+        ];
+
+        let selectedOfferForActiveItem = null;
+
+        function openOfferModal() {
+            document.getElementById('offerModal').classList.remove('hidden');
+            renderOfferCartItems();
+            document.getElementById('offer-empty-state').classList.remove('hidden');
+            document.getElementById('offer-list-container').innerHTML = '';
+            document.getElementById('offer-item-name').innerText = '';
+            offerActiveItemIndex = null;
+            selectedOfferForActiveItem = null;
+            lucide.createIcons();
+        }
+
+        function closeOfferModal() {
+            document.getElementById('offerModal').classList.add('hidden');
+        }
+
+        function renderOfferCartItems() {
+            const list = document.getElementById('offer-items-list');
+            list.innerHTML = '';
+
+            cartDummyData.forEach((item, index) => {
+                const isSelected = offerActiveItemIndex === index;
+                const activeClasses = isSelected ? 'ring-2 ring-indigo-500 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300';
+
+                const statusBadge = item.isRunningKOT
+                    ? `<span class="bg-amber-100 text-amber-700 text-[9px] px-2 py-0.5 rounded-full font-black uppercase flex items-center gap-1"><i data-lucide="lock" class="w-2.5 h-2.5"></i> Running Order</span>`
+                    : '';
+
+                const offerBadge = item.appliedOffer
+                    ? `<span class="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2 py-0.5 rounded border border-emerald-200">${item.appliedOffer}</span>`
+                    : '';
+
+                list.innerHTML += `
+                    <div onclick="selectOfferItem(${index})" class="border ${activeClasses} p-3 rounded-xl cursor-pointer transition-all touch-btn">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="font-black text-slate-800 text-sm">${item.name}</span>
+                            <span class="font-black text-slate-500 text-xs">x${item.qty}</span>
+                        </div>
+                        <div class="flex items-center justify-between mt-2">
+                             ${statusBadge}
+                             ${offerBadge}
+                        </div>
+                    </div>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        function selectOfferItem(index) {
+            const item = cartDummyData[index];
+
+            if (item.isRunningKOT) {
+                notify("Cannot apply offers to items in a running (saved) KOT", "warning");
+                return;
+            }
+
+            offerActiveItemIndex = index;
+            selectedOfferForActiveItem = null; // Reset selection on new item
+
+            renderOfferCartItems(); // Re-render to show active state
+
+            document.getElementById('offer-empty-state').classList.add('hidden');
+            document.getElementById('offer-item-name').innerText = ` - ${item.name}`;
+            renderAvailableOffers();
+        }
+
+        function renderAvailableOffers() {
+            const container = document.getElementById('offer-list-container');
+            container.innerHTML = '';
+
+            dummyOffers.forEach(offer => {
+                const isSelected = selectedOfferForActiveItem === offer.id;
+                const activeColor = isSelected ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300';
+                const iconColor = isSelected ? 'text-emerald-500' : 'text-slate-400';
+                const checkIcon = isSelected ? `<i data-lucide="check-circle-2" class="w-6 h-6 text-emerald-500"></i>` : '';
+
+                container.innerHTML += `
+                    <div onclick="selectOffer('${offer.id}')" class="border-2 ${activeColor} p-4 rounded-xl cursor-pointer transition-all touch-btn flex items-center gap-4">
+                        <div class="${iconColor}">
+                            <i data-lucide="ticket-percent" class="w-8 h-8"></i>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-black text-slate-800">${offer.name}</h4>
+                            <p class="text-xs font-bold text-slate-500">${offer.desc}</p>
+                        </div>
+                        ${checkIcon}
+                    </div>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        function selectOffer(offerId) {
+            selectedOfferForActiveItem = offerId;
+            renderAvailableOffers(); // Update visual state
+        }
+
+        function applyOffer() {
+            if (offerActiveItemIndex === null) {
+                notify("Please select an item first", "error");
+                return;
+            }
+            if (!selectedOfferForActiveItem) {
+                notify("Please choose an offer to apply", "error");
+                return;
+            }
+
+            const offerData = dummyOffers.find(o => o.id === selectedOfferForActiveItem);
+
+            // Apply to dummy data
+            cartDummyData[offerActiveItemIndex].appliedOffer = offerData.name;
+            closeOfferModal();
+            notify(`Applied ${offerData.name} to ${cartDummyData[offerActiveItemIndex].name}`, "success");
+        }
+
+        lucide.createIcons();
+
+        function focusQRScanner() {
+            const qrInput = document.getElementById('qrHiddenInput');
+            qrInput.value = ""; // Clear old data
+            qrInput.focus();
+
+            // Provide visual feedback
+            notify("Scanner Active: Scan Now", "info");
+        }
+
+        // Handler for when QR data is detected
+        function handleQRScan(value) {
+            if (!value) return;
+
+            // Show loading state while processing the scan
+            showBusy(true, "Processing QR Code...");
+
+            setTimeout(() => {
+                showBusy(false);
+                console.log("Scanned QR Data:", value);
+
+                // Trigger the settlement flow automatically if valid data found
+                notify(`QR Scanned: ${value}`, "success");
+
+                // Clear the input for next scan
+                document.getElementById('qrHiddenInput').value = "";
+            }, 1000);
+        }
+
+        function showBusy(show = true, text = "Loading...") {
+            // Reusing your existing global overlay concept if there is one, or creating a temp toast. 
+            // Usually there is a spinner overlay in your master layout. We simulate it here if missing.
+            if (show) {
+                // Could open a loading overlay, for now we will just use a slight CSS block if required, but visually simple
+            }
+        }
+
+
+        function notify(msg, state) {
+            let color = "bg-slate-800";
+            let iconName = "info"; // Default icon
+
+            switch (state) {
+                case "success":
+                    color = "bg-emerald-500";
+                    iconName = "check-circle";
+                    break;
+                case "error":
+                    color = "bg-red-500";
+                    iconName = "alert-circle";
+                    break;
+                case "warning":
+                    color = "bg-orange-500";
+                    iconName = "alert-triangle";
+                    break;
+                case "info":
+                    color = "bg-blue-500";
+                    iconName = "info";
+                    break;
+            }
+
+            const toast = document.createElement('div');
+            // Added 'right-10' for positioning and 'flex' for icon alignment
+            toast.className = `fixed bottom-10 right-10 ${color} text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl animate-in fade-in slide-in-from-bottom-5 duration-300 z-[300] flex items-center gap-3`;
+
+            // Create the icon and text structure
+            toast.innerHTML = `
+                <div class="bg-white/20 p-1.5 rounded-lg">
+                    <i data-lucide="${iconName}" class="w-5 h-5 text-white"></i>
+                </div>
+                <span>${msg}</span>
+            `;
+
+            document.body.appendChild(toast);
+
+            // Initialize the icon for the new element
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.classList.add('animate-out', 'fade-out', 'slide-out-to-bottom-5');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+
+</html>
