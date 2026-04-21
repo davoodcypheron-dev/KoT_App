@@ -12,6 +12,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getAllAddons, saveItemAddonLink, getAllItemAddonLinks, deleteItemAddonLink } from '../data/idb';
 import MasterNavPanel from '../components/MasterNavPanel';
 
+const BRANCHES = [
+  { id: 'B1', name: 'Antigravity Kitchen' },
+  { id: 'B2', name: 'Main Branch' },
+  { id: 'B3', name: 'Downtown Branch' }
+];
+
 const ItemAddonMaster = () => {
   const { notify } = useApp();
   const navigate = useNavigate();
@@ -25,12 +31,14 @@ const ItemAddonMaster = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [itemSearchTerm, setItemSearchTerm] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState('Antigravity Kitchen');
   const [addonSearchTerm, setAddonSearchTerm] = useState(''); 
   const [selectedAddonIds, setSelectedAddonIds] = useState([]);
   const [status, setStatus] = useState(true); // Active/Inactive
 
   // Search/Filter States (Right Section)
   const [findSearchTerm, setFindSearchTerm] = useState('');
+  const [findBranchFilter, setFindBranchFilter] = useState('');
   const [filterGridTerm, setFilterGridTerm] = useState('');
 
   useEffect(() => {
@@ -78,15 +86,15 @@ const ItemAddonMaster = () => {
     }
   };
 
-  // Step 3: Filter Addons for Selection Table
+  // Step 3: Filter Addons for Selection Table (Filter by branch AND search term)
   const filteredAddons = useMemo(() => {
      const term = addonSearchTerm.toLowerCase().trim();
-     if (!term) return dbAddons;
-     return dbAddons.filter(a => 
-        a.displayName.toLowerCase().includes(term) || 
-        a.itemName.toLowerCase().includes(term)
-     );
-  }, [dbAddons, addonSearchTerm]);
+     return dbAddons.filter(a => {
+        const matchBranch = a.branch === selectedBranch;
+        const matchSearch = term ? (a.displayName.toLowerCase().includes(term) || a.itemName.toLowerCase().includes(term)) : true;
+        return matchBranch && matchSearch;
+     });
+  }, [dbAddons, addonSearchTerm, selectedBranch]);
 
   const toggleAddonSelection = (addonId) => {
     setSelectedAddonIds(prev =>
@@ -122,6 +130,7 @@ const ItemAddonMaster = () => {
       itemId: selectedItem.id,
       itemName: selectedItem.name,
       addons: linkedAddons,
+      branch: selectedBranch,
       status: status ? 'Active' : 'Inactive',
       updatedAt: new Date().toISOString()
     };
@@ -151,16 +160,18 @@ const ItemAddonMaster = () => {
 
   const handleFind = () => {
     const term = findSearchTerm.toLowerCase().trim();
-    const filtered = itemAddonLinks.filter(l =>
-      l.itemName.toLowerCase().includes(term) ||
-      l.itemId.toLowerCase().includes(term)
-    );
+    const filtered = itemAddonLinks.filter(l => {
+      const matchName = term ? (l.itemName.toLowerCase().includes(term) || l.itemId.toLowerCase().includes(term)) : true;
+      const matchBranch = findBranchFilter ? l.branch === findBranchFilter : true;
+      return matchName && matchBranch;
+    });
     setGridData(filtered);
     notify(`Found ${filtered.length} mappings`, 'success');
   };
 
   const handleResetFind = () => {
     setFindSearchTerm('');
+    setFindBranchFilter('');
     setGridData(itemAddonLinks);
     notify('Filters reset', 'info');
   };
@@ -169,6 +180,7 @@ const ItemAddonMaster = () => {
     const item = itemsDb.find(i => i.id === link.itemId);
     if (item) {
       handleSelectItem(item);
+      setSelectedBranch(link.branch || 'Antigravity Kitchen');
     }
   };
 
@@ -197,8 +209,21 @@ const ItemAddonMaster = () => {
           </div>
 
           <div className="p-3 space-y-4 flex-1 flex flex-col overflow-hidden">
-            {/* Top Row: Item Search & Status */}
+            {/* Top Row: Branch, Item Search & Status */}
             <div className="grid grid-cols-12 gap-3 shrink-0">
+              <div className="col-span-12 space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Branch *</label>
+                <select
+                  value={selectedBranch}
+                  onChange={(e) => setSelectedBranch(e.target.value)}
+                  className="w-full h-9 border border-slate-300 rounded-sm px-3 text-xs outline-none focus:border-blue-400 bg-white"
+                >
+                  {BRANCHES.map(branch => (
+                    <option key={branch.id} value={branch.name}>{branch.name}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="col-span-8 space-y-1.5">
                 <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Base Item *</label>
                 <div className="relative group">
@@ -357,7 +382,20 @@ const ItemAddonMaster = () => {
               <Search size={14} /> Search Mappings
             </h2>
             <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-8 space-y-1">
+              <div className="col-span-4 space-y-1">
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight ml-0.5">Branch</label>
+                <select
+                  value={findBranchFilter}
+                  onChange={(e) => setFindBranchFilter(e.target.value)}
+                  className="w-full h-8 border border-slate-300 rounded-sm px-2 text-xs outline-none focus:border-blue-400 bg-white"
+                >
+                  <option value="">All Branches</option>
+                  {BRANCHES.map(branch => (
+                    <option key={branch.id} value={branch.name}>{branch.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-span-4 space-y-1">
                 <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight ml-0.5">Find by Item Name</label>
                 <input
                   type="text"
@@ -405,6 +443,7 @@ const ItemAddonMaster = () => {
             <table className="w-full text-xs text-left border-collapse">
               <thead className="bg-[#fcfdff] border-b border-slate-200 sticky top-0 bg-white shadow-sm">
                 <tr>
+                  <th className="px-3 py-3 border-r border-slate-200 font-bold text-slate-700 uppercase text-[9px] w-32">Branch</th>
                   <th className="px-3 py-3 border-r border-slate-200 font-bold text-slate-700 uppercase text-[9px]">Item Name</th>
                   <th className="px-3 py-3 border-r border-slate-200 font-bold text-slate-700 uppercase text-[9px] text-center w-24">Addons</th>
                   <th className="px-3 py-3 border-r border-slate-200 font-bold text-slate-700 uppercase text-[9px] text-center w-24">Status</th>
@@ -414,6 +453,9 @@ const ItemAddonMaster = () => {
               <tbody>
                 {finalGridData.length > 0 ? finalGridData.map((link) => (
                   <tr key={link.itemId} className="border-b border-slate-100 hover:bg-slate-50 transition-all font-bold text-slate-700">
+                    <td className="px-3 py-3 border-r border-slate-50 text-blue-600">
+                      {link.branch || 'None'}
+                    </td>
                     <td className="px-3 py-3 border-r border-slate-50">
                       <div className="text-[11px] font-bold text-slate-800 uppercase tracking-tight">{link.itemName}</div>
                       <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest opacity-60">{link.itemId}</div>
@@ -440,7 +482,7 @@ const ItemAddonMaster = () => {
                   </tr>
                 )) : (
                   <tr className="border-b border-slate-100 italic text-slate-400 text-center">
-                    <td className="px-3 py-20" colSpan="4">
+                    <td className="px-3 py-20" colSpan="5">
                        <div className="flex flex-col items-center gap-3">
                           <Link2Off size={40} strokeWidth={1} />
                           <span className="font-black uppercase tracking-widest text-[10px]">No records match your search</span>

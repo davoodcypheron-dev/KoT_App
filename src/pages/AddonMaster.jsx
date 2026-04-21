@@ -12,6 +12,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { saveAddon, getAllAddons } from '../data/idb';
 import MasterNavPanel from '../components/MasterNavPanel';
 
+const BRANCHES = [
+  { id: 'B1', name: 'Antigravity Kitchen' },
+  { id: 'B2', name: 'Main Branch' },
+  { id: 'B3', name: 'Downtown Branch' }
+];
+
 const AddonMaster = () => {
   const { notify } = useApp();
   const navigate = useNavigate();
@@ -26,6 +32,13 @@ const AddonMaster = () => {
   const [addonsList, setAddonsList] = useState([]);
   const [gridData, setGridData] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const [selectedBranch, setSelectedBranch] = useState('Antigravity Kitchen');
+
+  // Find Filters
+  const [findBranchFilter, setFindBranchFilter] = useState('');
+  const [findAddonNameFilter, setFindAddonNameFilter] = useState('');
+  const [findItemSearchTerm, setFindItemSearchTerm] = useState('');
+  const [showFindSuggestions, setShowFindSuggestions] = useState(false);
 
   React.useEffect(() => {
     loadAddons();
@@ -46,12 +59,16 @@ const AddonMaster = () => {
     item.id.toLowerCase().includes(itemSearchTerm.toLowerCase())
   );
 
+  const filteredFindItems = itemsDb.filter(item =>
+    item.name.toLowerCase().includes(findItemSearchTerm.toLowerCase()) ||
+    item.id.toLowerCase().includes(findItemSearchTerm.toLowerCase())
+  );
+
   const handleSelectItem = (item) => {
     setSelectedItem(item);
     setItemSearchTerm(`${item.id} - ${item.name}`);
-    if (!displayName.trim()) {
-      setDisplayName(item.name);
-    }
+    // Auto generate display name and fill rate
+    setDisplayName(item.name);
     setPrice(item.price.toFixed(2));
     setShowSuggestions(false);
   };
@@ -67,6 +84,7 @@ const AddonMaster = () => {
       price: parseFloat(price),
       isTaxIncluded: isTaxIncluded,
       status: status ? 'Active' : 'Inactive',
+      branch: selectedBranch,
       updatedAt: new Date().toISOString()
     };
 
@@ -102,16 +120,20 @@ const AddonMaster = () => {
   };
 
   const handleFind = () => {
-    const filtered = addonsList.filter(addon =>
-      addon.displayName.toLowerCase().includes(findSearchTerm.toLowerCase()) ||
-      addon.itemName.toLowerCase().includes(findSearchTerm.toLowerCase())
-    );
+    const filtered = addonsList.filter(addon => {
+      const matchName = findItemSearchTerm ? addon.itemName.toLowerCase().includes(findItemSearchTerm.toLowerCase()) : true;
+      const matchAddonName = findAddonNameFilter ? addon.displayName.toLowerCase().includes(findAddonNameFilter.toLowerCase()) : true;
+      const matchBranch = findBranchFilter ? addon.branch === findBranchFilter : true;
+      return matchName && matchAddonName && matchBranch;
+    });
     setGridData(filtered);
     notify(`Found ${filtered.length} records`, 'success');
   };
 
   const handleReset = () => {
-    setFindSearchTerm('');
+    setFindItemSearchTerm('');
+    setFindBranchFilter('');
+    setFindAddonNameFilter('');
     setGridData(addonsList);
     notify('Filters reset', 'info');
   };
@@ -124,6 +146,7 @@ const AddonMaster = () => {
     setStatus(addon.status === 'Active');
     setSelectedItem({ id: addon.itemId, name: addon.itemName });
     setItemSearchTerm(`${addon.itemId} - ${addon.itemName}`);
+    setSelectedBranch(addon.branch || 'Antigravity Kitchen');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     notify('Record loaded for editing', 'info');
   };
@@ -131,7 +154,7 @@ const AddonMaster = () => {
   return (
     <div className="flex-1 flex flex-col bg-[#f0f4f7] overflow-hidden">
       <MasterNavPanel />
-      
+
       <div className="flex-1 overflow-y-auto no-scrollbar p-2 space-y-4">
         {/* TOP PART: SAVE */}
         <div className="bg-white border border-slate-300 rounded-sm shadow-sm p-3">
@@ -140,21 +163,22 @@ const AddonMaster = () => {
           </h2>
 
           <div className="grid grid-cols-12 gap-2">
-            {/* 1. Addon Display Name */}
-            <div className="col-span-6 space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-600">Addon Display Name *</label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Enter display name"
-                className="w-full h-9 border border-slate-300 rounded-sm px-3 text-xs outline-none focus:border-blue-400"
-              />
+            {/* ROW 1: Branch, Base Item, Addon Name */}
+            <div className="col-span-4 space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Branch *</label>
+              <select
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="w-full h-9 border border-slate-300 rounded-sm px-3 text-xs outline-none focus:border-blue-400 bg-white"
+              >
+                {BRANCHES.map(branch => (
+                  <option key={branch.id} value={branch.name}>{branch.name}</option>
+                ))}
+              </select>
             </div>
 
-            {/* 2. Base Item (Type-ahead Search) */}
-            <div className="col-span-6 space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-600">Base Item *</label>
+            <div className="col-span-4 space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Base Item *</label>
               <div className="relative group">
                 <input
                   type="text"
@@ -165,7 +189,7 @@ const AddonMaster = () => {
                     setShowSuggestions(true);
                   }}
                   onFocus={() => setShowSuggestions(true)}
-                  className="w-full h-9 border border-slate-300 rounded-sm px-3 text-xs outline-none focus:border-blue-400 bg-white shadow-inner transition-all"
+                  className="w-full h-9 border border-slate-300 rounded-sm px-3 text-xs outline-none focus:border-blue-400 bg-white shadow-inner transition-all font-bold"
                 />
 
                 <AnimatePresence>
@@ -199,22 +223,33 @@ const AddonMaster = () => {
               </div>
             </div>
 
-            <div className="col-span-6 grid grid-cols-12 gap-8 items-end border-slate-50">
-              <div className="col-span-2 space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-600">Price *</label>
-                <div className="relative">
+            <div className="col-span-4 space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Addon Name *</label>
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Enter display name"
+                className="w-full h-9 border border-slate-300 rounded-sm px-3 text-xs outline-none focus:border-blue-400 font-bold"
+              />
+            </div>
 
+            {/* ROW 2: Price, Tax Included, Status */}
+            <div className="col-span-4 space-y-1.5 pt-2 flex justify-between">
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Price *</label>
+                <div className="relative">
                   <input
                     type="text"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
-                    className="w-full h-9 border border-slate-300 rounded-sm pl-7 pr-3 text-xs text-end outline-none focus:border-blue-400 font-bold text-slate-700"
+                    className="w-full h-9 border border-slate-300 rounded-sm pl-3 pr-3 text-xs text-start outline-none focus:border-blue-400 font-bold text-slate-700"
                   />
                 </div>
               </div>
 
-              <div className="col-span-2">
-                <label className="text-[11px] font-bold text-slate-600">Tax Included</label>
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Tax Included</label>
                 <div className="flex items-center h-9">
                   <button
                     onClick={() => setIsTaxIncluded(!isTaxIncluded)}
@@ -226,8 +261,8 @@ const AddonMaster = () => {
                 </div>
               </div>
 
-              <div className="col-span-3">
-                <label className="text-[11px] font-bold text-slate-600">Status</label>
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Status</label>
                 <div className="flex items-center h-9">
                   <button
                     onClick={() => setStatus(!status)}
@@ -270,16 +305,79 @@ const AddonMaster = () => {
               <Search size={14} /> Search Records
             </h2>
             <div className="grid grid-cols-12 gap-4 items-end">
-              <div className="col-span-4 space-y-1">
-                <label className="text-[11px] font-bold text-slate-600">Find by Name</label>
+              <div className="col-span-3 space-y-1">
+                <label className="text-[11px] font-bold text-slate-600">Find by Branch</label>
+                <select
+                  value={findBranchFilter}
+                  onChange={(e) => setFindBranchFilter(e.target.value)}
+                  className="w-full h-8 border border-slate-300 rounded-sm px-2 text-xs outline-none focus:border-blue-400 bg-white font-bold"
+                >
+                  <option value="">All Branches</option>
+                  {BRANCHES.map(branch => (
+                    <option key={branch.id} value={branch.name}>{branch.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-span-3 space-y-1">
+                <label className="text-[11px] font-bold text-slate-600">Base Item (List)</label>
+                <div className="relative group">
+                  <input
+                    type="text"
+                    placeholder="Type to filter..."
+                    value={findItemSearchTerm}
+                    onChange={(e) => {
+                      setFindItemSearchTerm(e.target.value);
+                      setShowFindSuggestions(true);
+                    }}
+                    onFocus={() => setShowFindSuggestions(true)}
+                    className="w-full h-8 border border-slate-300 rounded-sm px-2 text-xs outline-none focus:border-blue-400 bg-white font-bold"
+                  />
+                  <AnimatePresence>
+                    {showFindSuggestions && findItemSearchTerm.length > 0 && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowFindSuggestions(false)} />
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-md z-20 max-h-40 overflow-y-auto no-scrollbar"
+                        >
+                          {filteredFindItems.length > 0 ? (
+                            filteredFindItems.map(item => (
+                              <button
+                                key={item.id}
+                                onClick={() => {
+                                  setFindItemSearchTerm(item.name);
+                                  setShowFindSuggestions(false);
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-slate-50 last:border-0"
+                              >
+                                <div className="text-[10px] font-bold text-slate-800">{item.name}</div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-[10px] text-slate-400 text-center italic">No items</div>
+                          )}
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              <div className="col-span-3 space-y-1">
+                <label className="text-[11px] font-bold text-slate-600">Addon Name</label>
                 <input
                   type="text"
-                  value={findSearchTerm}
-                  onChange={(e) => setFindSearchTerm(e.target.value)}
-                  className="w-full h-8 border border-slate-300 rounded-sm px-2 text-xs outline-none focus:border-blue-400"
+                  value={findAddonNameFilter}
+                  onChange={(e) => setFindAddonNameFilter(e.target.value)}
+                  className="w-full h-8 border border-slate-300 rounded-sm px-2 text-xs outline-none focus:border-blue-400 font-bold"
+                  placeholder="Filter by addon name..."
                 />
               </div>
-              <div className="col-span-8 flex justify-end gap-2 text-end">
+
+              <div className="col-span-3 flex justify-end gap-2 text-end">
                 <button
                   onClick={handleFind}
                   className="bg-[#7c8cfd] hover:bg-[#6a79e4] text-white h-8 px-6 rounded-md flex items-center gap-2 font-bold text-xs transition-all active:scale-95 shadow-sm"
@@ -310,6 +408,7 @@ const AddonMaster = () => {
             <table className="w-full text-xs text-left border-collapse">
               <thead className="bg-[#fcfdff] border-b border-slate-200 sticky top-0 bg-white">
                 <tr>
+                  <th className="px-3 py-2 border-r border-slate-200 font-bold text-slate-700">Branch</th>
                   <th className="px-3 py-2 border-r border-slate-200 font-bold text-slate-700">Addon Name</th>
                   <th className="px-3 py-2 border-r border-slate-200 font-bold text-slate-700">Display Name</th>
                   <th className="px-3 py-2 border-r border-slate-200 font-bold text-slate-700">Price</th>
@@ -320,6 +419,7 @@ const AddonMaster = () => {
               <tbody>
                 {gridData.length > 0 ? gridData.map((addon, index) => (
                   <tr key={addon.id || index} className="border-b border-slate-100 hover:bg-slate-50 transition-all font-bold text-slate-700">
+                    <td className="px-3 py-2 border-r border-slate-100 text-blue-600">{addon.branch || 'None'}</td>
                     <td className="px-3 py-2 border-r border-slate-100">{addon.itemName}</td>
                     <td className="px-3 py-2 border-r border-slate-100">{addon.displayName}</td>
                     <td className="px-3 py-2 border-r border-slate-100 text-end">₹{addon.price.toFixed(2)}</td>
@@ -340,7 +440,7 @@ const AddonMaster = () => {
                   </tr>
                 )) : (
                   <tr className="border-b border-slate-100 italic text-slate-400 text-center">
-                    <td className="px-3 py-12" colSpan="5">No records matching your search</td>
+                    <td className="px-3 py-12" colSpan="6">No records matching your search</td>
                   </tr>
                 )}
               </tbody>
