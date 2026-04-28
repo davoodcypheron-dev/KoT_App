@@ -26,7 +26,7 @@ const TablesPage = () => {
   const [showPaxModal, setShowPaxModal] = useState(null);
   const [showSettleModal, setShowSettleModal] = useState(null); // stores table object
   const [showPrintConfirm, setShowPrintConfirm] = useState(false);
-  const [paxInput, setPaxInput] = useState('');
+  const [paxInput, setPaxInput] = useState('1');
   const [liveOrders, setLiveOrders] = useState([]);
   const [activeBookings, setActiveBookings] = useState([]);
   const [showReservationModal, setShowReservationModal] = useState(null);
@@ -159,7 +159,7 @@ const TablesPage = () => {
       }
 
       setShowPaxModal(virtualTable);
-      setPaxInput('');
+      setPaxInput('1');
       return;
     }
 
@@ -190,7 +190,7 @@ const TablesPage = () => {
         navigate('/kot');
       } else {
         setShowPaxModal(table);
-        setPaxInput('');
+        setPaxInput('1');
       }
     } else if (table.status === 'running' || table.status === 'billed') {
       if (!activeOrder) {

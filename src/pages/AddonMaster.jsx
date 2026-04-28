@@ -152,158 +152,176 @@ const AddonMaster = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#f0f4f7] overflow-hidden">
+    <div className="flex-1 flex flex-col bg-[#fbf2f2] overflow-hidden">
       <MasterNavPanel />
 
       <div className="flex-1 overflow-y-auto no-scrollbar p-2 space-y-4">
         {/* TOP PART: SAVE */}
-        <div className="bg-white border border-slate-300 rounded-sm shadow-sm p-3">
-          <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-widest border-b border-slate-100 flex items-center gap-2">
-            <Save size={14} /> Save
-          </h2>
-
-          <div className="grid grid-cols-12 gap-2">
-            {/* ROW 1: Branch, Base Item, Addon Name */}
-            <div className="col-span-4 space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Branch *</label>
-              <select
-                value={selectedBranch}
-                onChange={(e) => setSelectedBranch(e.target.value)}
-                className="w-full h-9 border border-slate-300 rounded-sm px-3 text-xs outline-none focus:border-blue-400 bg-white"
-              >
-                {BRANCHES.map(branch => (
-                  <option key={branch.id} value={branch.name}>{branch.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="col-span-4 space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Base Item *</label>
-              <div className="relative group">
-                <input
-                  type="text"
-                  placeholder="Type to search base item..."
-                  value={itemSearchTerm}
-                  onChange={(e) => {
-                    setItemSearchTerm(e.target.value);
-                    setShowSuggestions(true);
-                  }}
-                  onFocus={() => setShowSuggestions(true)}
-                  className="w-full h-9 border border-slate-300 rounded-sm px-3 text-xs outline-none focus:border-blue-400 bg-white shadow-inner transition-all font-bold"
-                />
-
-                <AnimatePresence>
-                  {showSuggestions && itemSearchTerm.length > 0 && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setShowSuggestions(false)} />
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-md z-20 max-h-48 overflow-y-auto no-scrollbar"
-                      >
-                        {filteredItems.length > 0 ? (
-                          filteredItems.map(item => (
-                            <button
-                              key={item.id}
-                              onClick={() => handleSelectItem(item)}
-                              className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b border-slate-50 last:border-0"
-                            >
-                              <div className="text-[10px] font-bold text-slate-800">{item.name}</div>
-                              <div className="text-[9px] text-slate-400 uppercase tracking-tighter">{item.id} • ₹{item.price}</div>
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-3 py-3 text-[10px] text-slate-400 text-center italic">No items found</div>
-                        )}
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
+        <div className="bg-white border border-slate-300 rounded-sm shadow-sm shrink-0 relative">
+          <div className="bg-[#fcf4d9] px-3 py-1.5 border-b border-slate-300 rounded-t-sm">
+            <h2 className="text-xs font-bold text-slate-800 uppercase tracking-tight">Save</h2>
+          </div>
+          <div className="p-2 space-y-2">
+            <div className="grid grid-cols-12 gap-3 items-start">
+              {/* Branch */}
+              <div className="col-span-2 space-y-0.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Branch *</label>
+                <select
+                  value={selectedBranch}
+                  onChange={(e) => setSelectedBranch(e.target.value)}
+                  className="w-full h-8 border border-slate-300 rounded-sm px-2 text-[11px] outline-none focus:border-blue-400 bg-white font-bold text-slate-700"
+                >
+                  {BRANCHES.map(branch => (
+                    <option key={branch.id} value={branch.name}>{branch.name}</option>
+                  ))}
+                </select>
               </div>
-            </div>
 
-            <div className="col-span-4 space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Addon Name *</label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Enter display name"
-                className="w-full h-9 border border-slate-300 rounded-sm px-3 text-xs outline-none focus:border-blue-400 font-bold"
-              />
-            </div>
-
-            {/* ROW 2: Price, Tax Included, Status */}
-            <div className="col-span-4 space-y-1.5 pt-2 flex justify-between">
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Price *</label>
-                <div className="relative">
+              {/* Base Item */}
+              <div className="col-span-3 space-y-0.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Base Item *</label>
+                <div className="relative group">
                   <input
                     type="text"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    className="w-full h-9 border border-slate-300 rounded-sm pl-3 pr-3 text-xs text-start outline-none focus:border-blue-400 font-bold text-slate-700"
+                    placeholder="Search item..."
+                    value={itemSearchTerm}
+                    onChange={(e) => {
+                      setItemSearchTerm(e.target.value);
+                      setShowSuggestions(true);
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    className="w-full h-8 border border-slate-300 rounded-sm px-2 text-[11px] outline-none focus:border-blue-400 bg-white font-bold"
                   />
+                  <AnimatePresence>
+                    {showSuggestions && itemSearchTerm.length > 0 && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowSuggestions(false)} />
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-md z-20 max-h-48 overflow-y-auto no-scrollbar"
+                        >
+                          {filteredItems.length > 0 ? (
+                            filteredItems.map(item => (
+                              <button
+                                key={item.id}
+                                onClick={() => handleSelectItem(item)}
+                                className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b border-slate-50 last:border-0"
+                              >
+                                <div className="text-[10px] font-bold text-slate-800">{item.name}</div>
+                                <div className="text-[9px] text-slate-400 uppercase tracking-tighter">{item.id} • ₹{item.price}</div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-3 text-[10px] text-slate-400 text-center italic">No items found</div>
+                          )}
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Tax Included</label>
-                <div className="flex items-center h-9">
+              {/* Addon Name */}
+              <div className="col-span-3 space-y-0.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Addon Name *</label>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Enter name"
+                  className="w-full h-8 border border-slate-300 rounded-sm px-2 text-[11px] outline-none focus:border-blue-400 font-bold"
+                />
+              </div>
+
+              {/* Rate */}
+              <div className="col-span-2 space-y-0.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Rate *</label>
+                <input
+                  type="text"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="w-full h-8 border border-slate-300 rounded-sm px-2 text-[11px] outline-none focus:border-blue-400 font-bold text-slate-700"
+                />
+              </div>
+
+              {/* Tax Included */}
+              <div className="col-span-1 space-y-0.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Tax Inc.</label>
+                <div className="flex items-center h-8">
                   <button
                     onClick={() => setIsTaxIncluded(!isTaxIncluded)}
-                    className={`relative w-11 h-5 rounded-full transition-colors duration-200 focus:outline-none ${isTaxIncluded ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    className={`w-full h-7 border border-slate-300 flex items-center relative overflow-hidden transition-all duration-300 focus:outline-none ${isTaxIncluded ? 'bg-[#e6f3ff]' : 'bg-white'}`}
                   >
-                    <div className={`absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${isTaxIncluded ? 'translate-x-6' : 'translate-x-0 shadow-sm'}`} />
+                    {isTaxIncluded ? (
+                      <>
+                        <span className="flex-1 text-center text-[9px] font-black uppercase text-slate-700">Yes</span>
+                        <div className="w-1.5 h-full bg-[#0078d4]" />
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-1.5 h-full bg-slate-600" />
+                        <span className="flex-1 text-center text-[9px] font-black uppercase text-slate-700">No</span>
+                      </>
+                    )}
                   </button>
-                  <span className="ml-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">{isTaxIncluded ? 'Yes' : 'No'}</span>
                 </div>
               </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Status</label>
-                <div className="flex items-center h-9">
+              {/* Status */}
+              <div className="col-span-1 space-y-0.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Status</label>
+                <div className="flex items-center h-8">
                   <button
                     onClick={() => setStatus(!status)}
-                    className={`relative w-11 h-5 rounded-full transition-colors duration-200 focus:outline-none ${status ? 'bg-[#4ebcc3]' : 'bg-slate-300'}`}
+                    className={`w-full h-7 border border-slate-300 flex items-center relative overflow-hidden transition-all duration-300 focus:outline-none ${status ? 'bg-[#e6f3ff]' : 'bg-white'}`}
                   >
-                    <div className={`absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${status ? 'translate-x-6' : 'translate-x-0 shadow-sm'}`} />
+                    {status ? (
+                      <>
+                        <span className="flex-1 text-center text-[9px] font-black uppercase text-slate-700">Active</span>
+                        <div className="w-1.5 h-full bg-[#0078d4]" />
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-1.5 h-full bg-slate-600" />
+                        <span className="flex-1 text-center text-[9px] font-black uppercase text-slate-700">Inactive</span>
+                      </>
+                    )}
                   </button>
-                  <span className="ml-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">{status ? 'Active' : 'Inactive'}</span>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="mt-2 flex justify-end gap-3 border-t border-slate-100 pt-2">
-            <button
-              onClick={handleSave}
-              className="bg-[#90e1a4] hover:bg-[#78cc8d] text-emerald-900 h-9 px-8 rounded-lg flex items-center gap-2 font-bold text-xs transition-all active:scale-95 shadow-sm"
-            >
-              <Save size={16} /> {editingId ? 'Update Record' : 'Save Record'}
-            </button>
-            <button
-              onClick={handleClear}
-              className="bg-[#fd7c7c] hover:bg-[#f35959] text-white h-9 px-8 rounded-lg flex items-center gap-2 font-bold text-xs transition-all active:scale-95 shadow-sm"
-            >
-              <Eraser size={16} /> Clear Form
-            </button>
-            <button
-              onClick={handleRefresh}
-              className="bg-[#e1e9f0] hover:bg-slate-200 text-slate-700 h-9 px-8 rounded-lg flex items-center gap-2 font-bold text-xs transition-all active:scale-95 shadow-sm"
-            >
-              <RefreshCw size={16} /> Refresh
-            </button>
+            <div className="mt-2 flex justify-end gap-3 border-t border-slate-100 pt-2">
+              <button
+                onClick={handleSave}
+                className="bg-[#90e1a4] hover:bg-[#78cc8d] text-emerald-900 h-9 px-8 rounded-lg flex items-center gap-2 font-bold text-xs transition-all active:scale-95 shadow-sm"
+              >
+                <Save size={16} /> {editingId ? 'Update Record' : 'Save Record'}
+              </button>
+              <button
+                onClick={handleClear}
+                className="bg-[#fd7c7c] hover:bg-[#f35959] text-white h-9 px-8 rounded-lg flex items-center gap-2 font-bold text-xs transition-all active:scale-95 shadow-sm"
+              >
+                <Eraser size={16} /> Clear Form
+              </button>
+              <button
+                onClick={handleRefresh}
+                className="bg-[#e1e9f0] hover:bg-slate-200 text-slate-700 h-9 px-8 rounded-lg flex items-center gap-2 font-bold text-xs transition-all active:scale-95 shadow-sm"
+              >
+                <RefreshCw size={16} /> Refresh
+              </button>
+            </div>
           </div>
         </div>
 
         {/* BOTTOM PART: FIND */}
-        <div className="bg-white border border-slate-300 rounded-sm shadow-sm flex flex-col overflow-hidden h-[430px]">
-          <div className="p-4 border-b border-slate-200 bg-slate-50/50">
-            <h2 className="text-[10px] font-black text-blue-700 uppercase tracking-widest flex items-center gap-2">
-              <Search size={14} /> Search Records
-            </h2>
+        <div className="bg-white border border-slate-300 rounded-sm shadow-sm flex flex-col overflow-hidden h-[490px]">
+          <div className="bg-[#fcf4d9] px-3 py-1.5 border-b border-slate-300 shrink-0">
+            <h2 className="text-xs font-bold text-slate-800 uppercase tracking-tight">Find</h2>
+          </div>
+          <div className="p-4 border-b border-slate-200 bg-slate-50/50 shrink-0">
             <div className="grid grid-cols-12 gap-4 items-end">
               <div className="col-span-3 space-y-1">
                 <label className="text-[11px] font-bold text-slate-600">Find by Branch</label>
@@ -320,7 +338,7 @@ const AddonMaster = () => {
               </div>
 
               <div className="col-span-3 space-y-1">
-                <label className="text-[11px] font-bold text-slate-600">Base Item (List)</label>
+                <label className="text-[11px] font-bold text-slate-600">Base Item</label>
                 <div className="relative group">
                   <input
                     type="text"
@@ -406,14 +424,14 @@ const AddonMaster = () => {
 
           <div className="flex-1 overflow-y-auto no-scrollbar">
             <table className="w-full text-xs text-left border-collapse">
-              <thead className="bg-[#fcfdff] border-b border-slate-200 sticky top-0 bg-white">
+              <thead className="bg-[#f2f2f2] border-b border-slate-300 sticky top-0 z-10">
                 <tr>
-                  <th className="px-3 py-2 border-r border-slate-200 font-bold text-slate-700">Branch</th>
-                  <th className="px-3 py-2 border-r border-slate-200 font-bold text-slate-700">Addon Name</th>
-                  <th className="px-3 py-2 border-r border-slate-200 font-bold text-slate-700">Display Name</th>
-                  <th className="px-3 py-2 border-r border-slate-200 font-bold text-slate-700">Price</th>
-                  <th className="px-3 py-2 border-r border-slate-200 font-bold text-slate-700">Status</th>
-                  <th className="px-3 py-2 font-bold text-slate-700 w-16 text-center">Edit</th>
+                  <th className="px-3 py-2 border-r border-slate-300 font-bold text-slate-800 uppercase text-[10px]">Branch</th>
+                  <th className="px-3 py-2 border-r border-slate-300 font-bold text-slate-800 uppercase text-[10px]">Addon Name</th>
+                  <th className="px-3 py-2 border-r border-slate-300 font-bold text-slate-800 uppercase text-[10px]">Display Name</th>
+                  <th className="px-3 py-2 border-r border-slate-300 font-bold text-slate-800 uppercase text-[10px]">Price</th>
+                  <th className="px-3 py-2 border-r border-slate-300 font-bold text-slate-800 uppercase text-[10px]">Status</th>
+                  <th className="px-3 py-2 font-bold text-slate-800 w-16 text-center uppercase text-[10px]">Edit</th>
                 </tr>
               </thead>
               <tbody>

@@ -42,7 +42,7 @@ const KotPage = () => {
       getSoldOutTracking().then(data => setSoldOutTracking(data || []));
    }, []);
 
-   const [activeGroup, setActiveGroup] = useState('O1');
+   const [activeGroup, setActiveGroup] = useState('VIRTUAL_COMBO_ALL');
    const [searchTerm, setSearchTerm] = useState('');
    const [groupSearch, setGroupSearch] = useState('');
    const [showExtrasModal, setShowExtrasModal] = useState(null); // cartId
@@ -58,7 +58,7 @@ const KotPage = () => {
    const [showDiscountAuth, setShowDiscountAuth] = useState(false);
    const [pendingDiscount, setPendingDiscount] = useState(null);
    const [isDiscountAuth, setIsDiscountAuth] = useState(false);
-   const [paxInput, setPaxInput] = useState('');
+   const [paxInput, setPaxInput] = useState('1');
    const [orderDiscount, setOrderDiscount] = useState({ type: 'percentage', value: 0, amount: 0, percentage: 0 });
    const [showSettlementModal, setShowSettlementModal] = useState(false);
    const [settlementType, setSettlementType] = useState('save'); // 'save' or 'settle'
@@ -200,6 +200,7 @@ const KotPage = () => {
 
    // Group sorting for movement
    const [groups, setGroups] = useState([
+      { id: 'VIRTUAL_COMBO_ALL', name: 'Combo Items', type: 'virtual' },
       ...organizersDb.map(o => ({ ...o, type: 'organizer' })),
       ...groupsDb.map(g => ({ ...g, type: 'group' }))
    ]);
@@ -218,22 +219,10 @@ const KotPage = () => {
          setDbItemAddonLinks(links);
 
          // Update groups with virtual categories if data exists
-         const virtualGroups = [];
-
-         const choiceItems = products.filter(p => p.type === 'CHOICE_ITEM' && p.status === 'Active');
-         if (choiceItems.length > 0) {
-            virtualGroups.push({ id: 'VIRTUAL_CHOICE', name: 'Choice Items', type: 'virtual' });
-         }
-
-         const comboItems = products.filter(p => p.type === 'COMBO_ITEM' && p.status === 'Active');
-         if (comboItems.length > 0) {
-            virtualGroups.push({ id: 'VIRTUAL_COMBO', name: 'Combos', type: 'virtual' });
-         }
-
-         if (virtualGroups.length > 0) {
+         if (products.length > 0) {
             setGroups(prev => {
                const baseGroups = prev.filter(g => g.type !== 'virtual');
-               return [...baseGroups, ...virtualGroups];
+               return [{ id: 'VIRTUAL_COMBO_ALL', name: 'Combo Items', type: 'virtual' }, ...baseGroups];
             });
          }
       } catch (err) {
@@ -286,13 +275,14 @@ const KotPage = () => {
 
    // Separate list for virtual items
    const virtualDisplayItems = useMemo(() => {
-      if (activeGroup === 'VIRTUAL_CHOICE') return dbProducts.filter(p => p.type === 'CHOICE_ITEM' && p.status === 'Active');
-      if (activeGroup === 'VIRTUAL_COMBO') return dbProducts.filter(p => p.type === 'COMBO_ITEM' && p.status === 'Active');
+      if (activeGroup === 'VIRTUAL_COMBO_ALL') return dbProducts.filter(p => p.status === 'Active');
       return [];
    }, [activeGroup, dbProducts]);
 
    const allDisplayItems = useMemo(() => {
       const searchLower = searchTerm.toLowerCase().trim();
+      let rawList = [];
+
       if (!config.openSearch && searchLower !== '') {
          // Global search: Merge itemsDb and dbProducts
          const matchingRegular = itemsDb.filter(i =>
@@ -302,16 +292,21 @@ const KotPage = () => {
             (p.displayName.toLowerCase().includes(searchLower) || p.id?.toString().toLowerCase().includes(searchLower)) &&
             p.status === 'Active'
          );
-         return [...matchingRegular, ...matchingProducts];
+         rawList = [...matchingRegular, ...matchingProducts];
+      } else {
+         const activeG = groups.find(g => g.id === activeGroup);
+         rawList = activeG?.type === 'virtual' ? virtualDisplayItems : filteredItems;
       }
 
-      const activeG = groups.find(g => g.id === activeGroup);
-      if (activeG?.type === 'virtual') return virtualDisplayItems;
-      return filteredItems;
-   }, [searchTerm, activeGroup, filteredItems, virtualDisplayItems, dbProducts, config.openSearch]);
+      return rawList.map(item => {
+         const tracked = soldOutTracking.find(t => t.id === item.id);
+         return { ...item, soldOut: tracked ? tracked.isSoldOut : false };
+      });
+   }, [searchTerm, activeGroup, filteredItems, virtualDisplayItems, dbProducts, config.openSearch, soldOutTracking]);
 
-   const suggestedItems = config.openSearch && searchTerm.trim() !== ''
-      ? [
+   const suggestedItems = useMemo(() => {
+      if (!config.openSearch || searchTerm.trim() === '') return [];
+      const raw = [
          ...itemsDb.filter(i =>
             i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (i.arName && i.arName.includes(searchTerm))
@@ -321,8 +316,13 @@ const KotPage = () => {
             p.status === 'Active' &&
             p.displayName.toLowerCase().includes(searchTerm.toLowerCase())
          )
-      ].slice(0, 12)
-      : [];
+      ].slice(0, 12);
+
+      return raw.map(item => {
+         const tracked = soldOutTracking.find(t => t.id === item.id);
+         return { ...item, soldOut: tracked ? tracked.isSoldOut : false };
+      });
+   }, [searchTerm, dbProducts, config.openSearch, soldOutTracking]);
 
    // Focus active group in sidebar
    useEffect(() => {
@@ -353,7 +353,8 @@ const KotPage = () => {
          }
       }
 
-      if (item.type === 'CHOICE_ITEM' || item.type === 'COMBO_ITEM') {
+      // If it's a configurable product, open the specialized modal
+      if (item.type === 'CHOICE_ITEM' || item.type === 'COMBO_ITEM' || (item.optionGroups && item.optionGroups.length > 0)) {
          setShowProductModal({ product: item });
          return;
       }
@@ -413,24 +414,16 @@ const KotPage = () => {
       setRateInput('');
    };
 
-   const handleProductConfirm = (product, selectedVariant, selectedAddons) => {
-      let basePrice = 0;
-
-      if (product.type === 'CHOICE_ITEM') {
-         basePrice = parseFloat(selectedVariant.price) || 0;
-      } else if (product.type === 'COMBO_ITEM') {
-         basePrice = (product.variants || []).reduce((sum, v) => sum + (parseFloat(v.price) * (v.qty || 1)), 0);
-      }
-
+   const handleProductConfirm = ({ groupSelections, selectedAddons, price }) => {
       if (showProductModal.cartItem) {
          // Updating existing item
          setCart(prev => prev.map(item => {
             if (item.cartId === showProductModal.cartItem.cartId) {
                return {
                   ...item,
-                  variantName: selectedVariant?.displayName,
-                  price: basePrice,
-                  addons: selectedAddons
+                  price: price, // This is the base price + group items + addons
+                  selectedAddons: selectedAddons,
+                  groupSelections: groupSelections
                };
             }
             return item;
@@ -439,32 +432,31 @@ const KotPage = () => {
          // Adding new item
          const cartId = Math.random();
          const newCartItem = {
-            id: product.id,
+            id: showProductModal.product.id,
             cartId,
-            name: product.displayName,
-            variantName: selectedVariant?.displayName,
-            price: basePrice,
+            name: showProductModal.product.displayName || showProductModal.product.name,
+            price: price,
             qty: 1,
             isParcel: false,
             notes: [],
-            addons: selectedAddons,
+            selectedAddons: selectedAddons,
             isSaved: false,
-            type: product.type === 'CHOICE_ITEM' ? 'CHOICE' : 'COMBO',
-            contents: product.type === 'COMBO_ITEM' ? product.variants : []
+            type: 'PRODUCT_CONFIG',
+            groupSelections: groupSelections
          };
          setCart([...cart, newCartItem]);
       }
 
       setShowProductModal(null);
-      notify(`${product.displayName} ${showProductModal.cartItem ? 'updated' : 'added to cart'}`, 'success');
+      notify(`${showProductModal.product.displayName || showProductModal.product.name} ${showProductModal.cartItem ? 'updated' : 'added to order'}`, 'success');
    };
 
    const handleAddon = (cartId) => {
       const item = cart.find(c => c.cartId === cartId);
       if (!item) return;
 
-      // If it's a Choice or Combo product, open the specialized modal for editing
-      if (item.type === 'CHOICE' || item.type === 'COMBO') {
+      // If it's a configurable product, re-open the configuration modal
+      if (item.type === 'PRODUCT_CONFIG' || item.groupSelections) {
          const product = dbProducts.find(p => p.id === item.id);
          if (product) {
             setShowProductModal({ product, cartItem: item });
@@ -486,8 +478,25 @@ const KotPage = () => {
             if (exists) {
                return { ...c, addons: addons.filter(a => a.id !== addon.id) };
             } else {
-               return { ...c, addons: [...addons, addon] };
+               return { ...c, addons: [...addons, { ...addon, qty: 1 }] };
             }
+         }
+         return c;
+      }));
+   };
+
+   const handleAddonQtySimple = (cartId, addon, delta) => {
+      setCart(prev => prev.map(c => {
+         if (c.cartId === cartId) {
+            const addons = c.addons || [];
+            const existing = addons.find(a => a.id === addon.id);
+            if (!existing) {
+               if (delta > 0) return { ...c, addons: [...addons, { ...addon, qty: 1 }] };
+               return c;
+            }
+            const nextQty = (existing.qty || 1) + delta;
+            if (nextQty <= 0) return { ...c, addons: addons.filter(a => a.id !== addon.id) };
+            return { ...c, addons: addons.map(a => a.id === addon.id ? { ...a, qty: nextQty } : a) };
          }
          return c;
       }));
@@ -600,12 +609,22 @@ const KotPage = () => {
 
    const calculateTotal = () => {
       return cart.reduce((acc, item) => {
-         let itemTotal = item.price * item.qty;
-         if (item.addons) {
-            const addonsTotal = item.addons.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0);
-            itemTotal += addonsTotal * item.qty;
+         let subItemTotal = 0;
+         const itemPrice = parseFloat(item.price) || 0;
+
+         // In new system, 'price' for PRODUCT_CONFIG includes everything configured
+         // For simple items, we still add addons separately here if they exist in legacy 'addons'
+         let addonsTotal = 0;
+         if (item.selectedAddons) {
+            // selectedAddons have internal qty
+            // Note: If PRODUCT_CONFIG, price ALREADY includes addonsTotal for 1 unit of parent
+            // So we don't add them again here.
+         } else if (item.addons) {
+            addonsTotal = item.addons.reduce((sum, a) => sum + (parseFloat(a.price) || 0) * (a.qty || 1), 0);
          }
-         return acc + itemTotal;
+
+         const lineTotal = (itemPrice + addonsTotal) * item.qty;
+         return acc + lineTotal;
       }, 0);
    };
 
@@ -1006,6 +1025,8 @@ const KotPage = () => {
                                           }}
                                           onAddon={handleAddon}
                                           showAddonButton={hasAddonMapping}
+                                          config={config}
+                                          dbProducts={dbProducts}
                                        />
                                     );
                                  })}
@@ -1037,6 +1058,8 @@ const KotPage = () => {
                                           }}
                                           onAddon={handleAddon}
                                           showAddonButton={hasAddonMapping}
+                                          config={config}
+                                          dbProducts={dbProducts}
                                        />
                                     );
                                  })}
@@ -1353,7 +1376,7 @@ const KotPage = () => {
                      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                         <div className="grid grid-cols-4 gap-2">
                            {allDisplayItems.map(item => (
-                              <ItemTile key={item.id} item={item} onAdd={() => addToCart(item)} isLocked={isBilled} />
+                              <ItemTile key={item.id} item={item} onAdd={() => addToCart(item)} isLocked={isBilled} config={config} />
                            ))}
                         </div>
                      </div>
@@ -1555,7 +1578,7 @@ const KotPage = () => {
                                  initial={{ scale: 0.8, opacity: 0 }}
                                  animate={{ scale: 1, opacity: 1 }}
                                  key={i}
-                                 className="flex items-center gap-1.5 bg-blue-600 text-white pl-3 pr-2 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-md active:scale-95"
+                                 className="flex items-center gap-1.5 bg-blue-600 text-white pl-3 pr-2 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg shadow-blue-100 active:scale-95"
                               >
                                  {tag}
                                  <button onClick={() => setModalInstructions(modalInstructions.filter((_, idx) => idx !== i))} className="w-4 h-4 rounded-full bg-blue-700 flex items-center justify-center hover:bg-blue-800 transition-all"><X size={10} /></button>
@@ -1578,7 +1601,7 @@ const KotPage = () => {
                         </div>
                         <button
                            onClick={() => setModalParcel(!modalParcel)}
-                           className={`w-14 h-8 rounded-full relative transition-all duration-300 ${modalParcel ? 'bg-emerald-500 shadow-md shadow-emerald-100' : 'bg-slate-300'}`}
+                           className={`w-14 h-8 rounded-full relative transition-all duration-300 ${modalParcel ? 'bg-emerald-500 shadow-lg shadow-blue-100 shadow-emerald-100' : 'bg-slate-300'}`}
                         >
                            <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-sm transition-all ${modalParcel ? 'left-7' : 'left-1'}`} />
                         </button>
@@ -2026,61 +2049,106 @@ const KotPage = () => {
                   cartItem={showProductModal.cartItem}
                   onClose={() => setShowProductModal(null)}
                   onConfirm={handleProductConfirm}
-                  initialConfig={initialConfig}
+                  config={config}
                   dbAddons={dbAddons}
                />
             )}
 
-            {showAddonModal && (
-               <div key="addon-modal" className="fixed inset-0 z-[310] flex items-center justify-center p-4">
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddonModal(null)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
-                  <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative bg-white w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 p-8">
-                     <div className="flex justify-between items-center mb-6">
-                        <div className="flex items-center gap-3">
-                           <div className="w-10 h-10 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center"><Plus size={20} /></div>
-                           <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Addons</h3>
+            {showAddonModal && (() => {
+               const currentItem = cart.find(c => c.cartId === showAddonModal.cartId);
+               const selectedAddonsInModal = currentItem?.addons || [];
+               const modalAddonsTotal = selectedAddonsInModal.reduce((sum, a) => sum + (parseFloat(a.price) || 0) * (a.qty || 1), 0);
+
+               return (
+                  <div key="addon-modal" className="fixed inset-0 z-[310] flex items-center justify-center p-4">
+                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddonModal(null)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
+                     <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh]">
+                        <div className="p-8 pb-6 flex justify-between items-center border-b border-slate-50">
+                           <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center"><Plus size={20} /></div>
+                              <div>
+                                 <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Addons</h3>
+                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Extra Toppings & Sides</p>
+                              </div>
+                           </div>
+                           <button onClick={() => setShowAddonModal(null)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-all"><X size={20} /></button>
                         </div>
-                        <button onClick={() => setShowAddonModal(null)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-all"><X size={20} /></button>
-                     </div>
 
-                     <div className="grid grid-cols-1 gap-2 max-h-[450px] overflow-y-auto no-scrollbar pb-4">
-                        {showAddonModal.availableAddons.map((addon) => {
-                           const isSelected = (cart.find(c => c.cartId === showAddonModal.cartId)?.addons || []).some(a => a.id === addon.id);
-                           return (
-                              <button
-                                 key={addon.id}
-                                 onClick={() => handleAddonToggle(showAddonModal.cartId, addon)}
-                                 className={`w-full p-4 rounded-2xl flex items-center justify-between transition-all group active:scale-95 border-2 ${isSelected ? 'bg-orange-50 border-orange-200 shadow-sm' : 'bg-slate-50 border-slate-100'}`}
-                              >
-                                 <div className="flex items-center gap-4">
-                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isSelected ? 'bg-orange-500 text-white' : 'bg-slate-200 text-transparent'}`}>
-                                       <Check size={14} strokeWidth={3} />
+                        <div className="flex-1 overflow-y-auto no-scrollbar p-8 pt-4 grid grid-cols-3 gap-4">
+                           {showAddonModal.availableAddons.map((addon) => {
+                              const selected = selectedAddonsInModal.find(a => a.id === addon.id);
+                              const isSelected = !!selected;
+                              const currentQty = selected?.qty || 0;
+
+                              return (
+                                 <div
+                                    key={addon.id}
+                                    onClick={() => handleAddonToggle(showAddonModal.cartId, addon)}
+                                    className={`p-4 rounded-3xl border-2 transition-all flex flex-col gap-3 min-h-[100px] justify-between cursor-pointer ${isSelected ? 'bg-orange-50 border-orange-200 shadow-xl shadow-orange-50' : 'bg-white border-slate-100 hover:border-slate-200 shadow-sm'}`}
+                                 >
+                                    <div className="flex justify-between items-start gap-4">
+                                       <div className="flex-1">
+                                          <h4 className={`text-sm font-black uppercase tracking-tight leading-tight ${isSelected ? 'text-orange-800' : 'text-slate-700'}`}>{addon.displayName}</h4>
+                                          <span className="text-[11px] font-bold text-slate-400">+{initialConfig.currencySymbol}{parseFloat(addon.price).toFixed(2)}</span>
+                                       </div>
+                                       <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isSelected ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-transparent border border-slate-200'}`}>
+                                          <Check size={12} strokeWidth={4} />
+                                       </div>
                                     </div>
-                                    <div className="text-left">
-                                       <span className={`block text-sm font-black uppercase transition-colors ${isSelected ? 'text-orange-700' : 'text-slate-600'}`}>{addon.displayName}</span>
-                                    </div>
+
+                                    {isSelected && (
+                                       <div className="flex items-center justify-between bg-white border border-orange-100 rounded-xl p-0.5 shadow-sm mt-auto w-fit" onClick={e => e.stopPropagation()}>
+                                          <button
+                                             onClick={(e) => { e.stopPropagation(); handleAddonQtySimple(showAddonModal.cartId, addon, -1); }}
+                                             className="w-12 h-10 rounded-lg bg-slate-50 flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90"
+                                          >
+                                             <Minus size={16} />
+                                          </button>
+                                          <span className="w-12 text-center text-[15px] font-black text-orange-900">{currentQty}</span>
+                                          <button
+                                             onClick={(e) => { e.stopPropagation(); handleAddonQtySimple(showAddonModal.cartId, addon, 1); }}
+                                             className="w-12 h-10 rounded-lg bg-orange-600 text-white flex items-center justify-center hover:bg-orange-700 shadow-lg shadow-orange-100 transition-all active:scale-95"
+                                          >
+                                             <Plus size={16} />
+                                          </button>
+                                       </div>
+                                    )}
                                  </div>
-                                 <span className={`text-md font-black tracking-tighter ${isSelected ? 'text-orange-600' : 'text-slate-400'}`}>+ {initialConfig.currencySymbol} {parseFloat(addon.price).toFixed(2)}</span>
-                              </button>
-                           );
-                        })}
-                     </div>
+                              );
+                           })}
+                        </div>
 
-                     <button
-                        onClick={() => setShowAddonModal(null)}
-                        className="w-full mt-6 py-4 bg-[#1e56a0] hover:bg-[#1a4a8a] text-white font-black rounded-2xl shadow-xl active:scale-95 transition-all uppercase text-[12px] tracking-[0.2em]"
-                     >
-                        Done
-                     </button>
-                  </motion.div>
-               </div>
-            )}
+                        <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                           <div className="flex flex-col">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Addons Total</span>
+                              <span className="text-2xl font-black text-orange-600">+{initialConfig.currencySymbol}{modalAddonsTotal.toFixed(2)}</span>
+                           </div>
+                           <button
+                              onClick={() => setShowAddonModal(null)}
+                              className="px-10 py-4 bg-[#1e56a0] hover:bg-[#1a4a8a] text-white font-black rounded-[2rem] shadow-xl active:scale-95 transition-all uppercase text-[12px] tracking-widest"
+                           >
+                              Apply Addons
+                           </button>
+                        </div>
+                     </motion.div>
+                  </div>
+               );
+            })()}
          </AnimatePresence>
       </div>
    );
 };
 
-const CartRow = ({ item, onQtyChange, onCancel, onExtras, onPriceChange, onRateEdit, isLocked, onAddon, showAddonButton }) => {
+const CartRow = ({ item, onQtyChange, onCancel, onExtras, onPriceChange, onRateEdit, isLocked, onAddon, showAddonButton, config, dbProducts }) => {
+   const [showComboDetails, setShowComboDetails] = React.useState(false);
+
+   // Helper to get group title for summary
+   const getGroupTitle = (groupId) => {
+      const product = dbProducts?.find(p => p.id === item.id);
+      const group = product?.optionGroups?.find(g => g.id === groupId);
+      return group?.title || group?.id || 'Selection';
+   };
+
    return (
       <div className={`bg-white border rounded-2xl p-3 flex flex-col mb-1.5 transition-all group ${item.isSaved ? 'border-amber-100' : 'border-slate-100 hover:border-blue-100 shadow-sm'} ${isLocked ? 'opacity-80' : ''}`}>
          <div className="flex items-center min-h-12">
@@ -2095,86 +2163,175 @@ const CartRow = ({ item, onQtyChange, onCancel, onExtras, onPriceChange, onRateE
             <div className="flex-1 px-2 flex flex-col overflow-hidden">
                <span className="text-xs font-black text-slate-800 uppercase leading-none truncate">{item.name}</span>
 
-               {/* Variant / Combo Contents */}
-               {item.variantName && (
-                  <span className="text-[10px] font-bold text-emerald-600 uppercase mt-1">Variant: {item.variantName}</span>
-               )}
-               {item.contents && item.contents.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                     {item.contents.map((c, i) => (
-                        <span key={i} className="text-[8px] font-bold text-slate-400 border border-slate-100 px-1.5 py-0.5 rounded uppercase">{c.displayName} x{c.qty}</span>
-                     ))}
+               {/* Combo Contents Toggle */}
+               {item.groupSelections && Object.keys(item.groupSelections).length > 0 && (
+                  <div className="mt-1.5 border-l-2 border-indigo-100 pl-2">
+                     <button
+                        onClick={() => setShowComboDetails(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all active:scale-95 border border-indigo-100/50"
+                     >
+                        <Layers size={12} />
+                        Show Contents
+                     </button>
+
+                     <AnimatePresence>
+                        {showComboDetails && (
+                           <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
+                              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowComboDetails(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
+                              <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[80vh]">
+                                 {/* Modal Header */}
+                                 <div className="p-6 pb-4 flex justify-between items-center border-b border-slate-50 bg-slate-50/50">
+                                    <div className="flex items-center gap-3">
+                                       <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100"><Layers size={20} /></div>
+                                       <div>
+                                          <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight leading-none">{item.name}</h4>
+                                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Combo Breakdown</p>
+                                       </div>
+                                    </div>
+                                    <button onClick={() => setShowComboDetails(false)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-all active:scale-90 shadow-sm border border-slate-100"><X size={20} /></button>
+                                 </div>
+
+                                 {/* Modal Content */}
+                                 <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+                                    {Object.entries(item.groupSelections).map(([groupId, selections]) => (
+                                       selections.length > 0 && (
+                                          <div key={groupId} className="space-y-3">
+                                             <div className="flex items-center gap-2">
+                                                <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">{getGroupTitle(groupId)}</span>
+                                                <div className="flex-1 h-[1px] bg-indigo-50" />
+                                             </div>
+                                             <div className="space-y-2">
+                                                {selections.map((sel, idx) => {
+                                                   const unitPrice = parseFloat(sel.price) || 0;
+                                                   const itemQty = parseInt(sel.qty) || 1;
+                                                   const totalQty = itemQty * item.qty;
+                                                   const totalPrice = unitPrice * totalQty;
+
+                                                   return (
+                                                      <div key={idx} className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                                                         <div className="flex flex-col">
+                                                            <span className="text-[11px] font-black text-slate-700 uppercase">{sel.displayName}</span>
+                                                            <div className="flex items-center gap-1.5 mt-1">
+                                                               <span className="text-[10px] font-bold text-indigo-600">{config.currencySymbol}{unitPrice.toFixed(2)}</span>
+                                                               <span className="text-[10px] font-bold text-slate-400">× {itemQty} {item.qty > 1 ? `(Combo ×${item.qty})` : ''}</span>
+                                                            </div>
+                                                         </div>
+                                                         <div className="flex flex-col items-end">
+                                                            <span className="text-[11px] font-black text-slate-800">{config.currencySymbol}{totalPrice.toFixed(2)}</span>
+                                                            <span className="text-[8px] font-bold text-slate-400 uppercase">{totalQty} Total Qty</span>
+                                                         </div>
+                                                      </div>
+                                                   );
+                                                })}
+                                             </div>
+                                          </div>
+                                       )
+                                    ))}
+                                 </div>
+
+                                 {/* Modal Footer */}
+                                 <div className="p-6 bg-slate-50 border-t border-slate-100">
+                                    <button onClick={() => setShowComboDetails(false)} className="w-full py-3 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 active:scale-95 transition-all uppercase text-[11px] tracking-widest">Close Breakdown</button>
+                                 </div>
+                              </motion.div>
+                           </div>
+                        )}
+                     </AnimatePresence>
                   </div>
                )}
+               <div className="flex flex-col gap-1 mt-2">
+                  {/* Categorized Addons Line */}
+                  {(item.selectedAddons || (item.addons && item.addons.length > 0)) && (
+                     <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mr-1 opacity-70">Addons:</span>
+                        {item.selectedAddons && item.selectedAddons.map((addon, i) => (
+                           <span key={i} className="text-[7px] font-black bg-orange-50 text-orange-500 border border-orange-100 px-1.5 py-0.5 rounded uppercase tracking-tighter">
+                              {addon.displayName} {addon.qty > 1 ? `x${addon.qty}` : ''}
+                           </span>
+                        ))}
+                        {!item.selectedAddons && item.addons && item.addons.map((addon, i) => (
+                           <span key={i} className="text-[7px] font-black bg-amber-50 text-amber-500 border border-amber-100 px-1.5 py-0.5 rounded uppercase ">
+                              {addon.displayName} {addon.qty > 1 ? `x${addon.qty}` : ''}
+                           </span>
+                        ))}
+                     </div>
+                  )}
 
-               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {item.isParcel && <span className="text-[8px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">Parcel</span>}
-                  {item.notes && (Array.isArray(item.notes) ? item.notes : [item.notes]).map((note, i) => (
-                     <span key={i} className="text-[7px] font-black bg-blue-50 text-blue-500 border border-blue-100 px-1.5 py-0.5 rounded uppercase tracking-tighter max-w-[80px] truncate">{note}</span>
-                  ))}
-                  {/* Addons Display */}
-                  {item.addons && item.addons.map((addon, i) => (
-                     <span key={i} className="text-[7px] font-black bg-orange-50 text-orange-500 border border-orange-100 px-1.5 py-0.5 rounded uppercase tracking-tighter max-w-[80px] truncate">{addon.displayName}</span>
-                  ))}
+                  {/* Item Notes Line */}
+                  {item.notes && (Array.isArray(item.notes) ? item.notes : [item.notes]).length > 0 && (
+                     <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mr-1 opacity-70">Notes:</span>
+                        {(Array.isArray(item.notes) ? item.notes : [item.notes]).map((note, i) => (
+                           <span key={i} className="text-[7px] font-black bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded uppercase tracking-tighter max-w-[100px] truncate">{note}</span>
+                        ))}
+                     </div>
+                  )}
                </div>
-            </div>             <div className="w-32 flex items-center justify-center gap-3">
-               <button
-                  disabled={isLocked}
-                  onClick={() => onQtyChange(item.cartId, -1)}
-                  className="w-8 h-8 rounded-lg bg-rose-100 hover:bg-rose-200 flex items-center justify-center text-rose-600 shadow-inner disabled:opacity-30 disabled:cursor-not-allowed"
-               >
-                  <Minus size={14} />
-               </button>
-               <input
-                  type="text"
-                  value={item.qty}
-                  readOnly
-                  className="w-8 h-8 text-center bg-transparent text-sm font-bold text-slate-600 rounded focus:border focus:border-slate-400 focus:outline-none"
-               />
-               <button
-                  disabled={isLocked}
-                  onClick={() => onQtyChange(item.cartId, 1)}
-                  className="w-8 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center text-white shadow-lg active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed"
-               >
-                  <Plus size={14} />
-               </button>
             </div>
+
+            <div className="w-32 flex flex-col items-center justify-center gap-1">
+               {item.isParcel && (
+                  <span className="text-[7px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase tracking-widest mb-1 shadow-sm shadow-emerald-100">
+                     Parcel
+                  </span>
+               )}
+               <div className="flex items-center justify-center gap-3">
+                  <button
+                     disabled={isLocked}
+                     onClick={() => onQtyChange(item.cartId, -1)}
+                     className="w-8 h-8 rounded-lg bg-rose-100 hover:bg-rose-200 flex items-center justify-center text-rose-600 shadow-inner disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                     <Minus size={14} />
+                  </button>
+                  <input
+                     type="text"
+                     value={item.qty}
+                     readOnly
+                     className="w-8 h-8 text-center bg-transparent text-sm font-bold text-slate-600 rounded focus:border focus:border-slate-400 focus:outline-none"
+                  />
+                  <button
+                     disabled={isLocked}
+                     onClick={() => onQtyChange(item.cartId, 1)}
+                     className="w-8 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center text-white shadow-lg active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                     <Plus size={14} />
+                  </button>
+               </div>
+            </div>
+
             <div className="w-24 flex flex-col items-end">
                {item.openItem ? (
-                  <div className="flex items-center gap-1">
-                     <span className="text-[11px] font-black text-blue-600">{initialConfig.currencySymbol} {parseFloat(item.price).toFixed(2)}</span>
-                     {!isLocked && (
-                        <button
-                           onClick={() => onRateEdit(item)}
-                           className="p-1 hover:bg-blue-50 text-blue-400 rounded transition-all"
-                           title="Edit Rate"
-                        >
-                           <Tag size={14} />
-                        </button>
-                     )}
-                  </div>
+                  <button
+                     onClick={() => !isLocked && onRateEdit(item)}
+                     disabled={isLocked}
+                     className="flex items-center gap-1.5 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100/50 hover:bg-blue-100 transition-all active:scale-95 disabled:opacity-100 disabled:bg-transparent disabled:border-transparent group/price"
+                  >
+                     <span className="text-[11px] font-black text-blue-700">{config.currencySymbol} {parseFloat(item.price).toFixed(2)}</span>
+                     {!isLocked && <Tag size={12} className="text-blue-400 group-hover/price:text-blue-600 transition-colors" />}
+                  </button>
                ) : (
-                  <span className="text-[10px] font-black text-slate-400">{initialConfig.currencySymbol} {((item.price + (item.addons?.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0) || 0))).toFixed(2)}</span>
+                  <span className="text-[10px] font-black text-slate-400">{config.currencySymbol} {((item.price + (item.addons?.reduce((sum, a) => sum + (parseFloat(a.price) || 0) * (a.qty || 1), 0) || 0))).toFixed(2)}</span>
                )}
-               <span className="text-sm font-black text-slate-800">{initialConfig.currencySymbol} {((item.price + (item.addons?.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0) || 0)) * item.qty).toFixed(2)}</span>
+               <span className="text-sm font-black text-slate-800">{config.currencySymbol} {((item.price + (item.addons?.reduce((sum, a) => sum + (parseFloat(a.price) || 0) * (a.qty || 1), 0) || 0)) * item.qty).toFixed(2)}</span>
             </div>
-            <div className="flex flex-col gap-1 ml-4 shrink-0">
+
+            <div className="flex flex-col justify-between items-end ml-4 shrink-0 h-full py-1 min-h-[60px]">
                <button
                   onClick={onExtras}
                   disabled={isLocked}
-                  className="w-8 h-8 bg-slate-100 text-slate-500 rounded-lg flex items-center justify-center hover:bg-blue-100 hover:text-blue-500 transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="w-8 h-8 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center hover:bg-blue-50 hover:text-blue-500 transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-100"
                   title="Preferences"
                >
                   <Info size={14} />
                </button>
-               {showAddonButton && (
+               {(showAddonButton || item.groupSelections) && (
                   <button
                      onClick={() => onAddon(item.cartId)}
                      disabled={isLocked}
-                     className="w-8 h-8 bg-slate-100 text-orange-500 rounded-lg flex items-center justify-center hover:bg-orange-100 transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed"
-                     title="Addons"
+                     className="w-8 h-8 bg-orange-50 text-orange-400 rounded-xl flex items-center justify-center hover:bg-orange-100 transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed mt-2 border border-orange-100"
+                     title={item.groupSelections ? "Modify Combo" : "Addons / Options"}
                   >
-                     <Plus size={14} />
+                     <Plus size={16} />
                   </button>
                )}
             </div>
@@ -2183,17 +2340,17 @@ const CartRow = ({ item, onQtyChange, onCancel, onExtras, onPriceChange, onRateE
    );
 };
 
-const ItemTile = ({ item, onAdd, isLocked }) => {
+const ItemTile = ({ item, onAdd, isLocked, config }) => {
    const [imgError, setImgError] = React.useState(false);
 
    // Calculate Combo Price or Hide Choice Price
    const displayPrice = React.useMemo(() => {
-      if (item.type === 'CHOICE_ITEM') return null;
-      if (item.type === 'COMBO_ITEM') {
-         return (item.variants || []).reduce((sum, v) => sum + (parseFloat(v.price) * (v.qty || 1)), 0);
-      }
+      // Combo/Choice items calculate price in the modal, so hide tag on tile
+      if (item.type === 'CHOICE_ITEM' || item.type === 'COMBO_ITEM' || item.groupSelections || (item.optionGroups && item.optionGroups.length > 0)) return null;
       return parseFloat(item.price) || 0;
    }, [item]);
+
+   console.log(item);
 
    // Calculate Diet Type based on priority: non-veg > egg > veg
    const displayDietType = React.useMemo(() => {
@@ -2217,7 +2374,7 @@ const ItemTile = ({ item, onAdd, isLocked }) => {
       <button
          onClick={onAdd}
          disabled={isLocked || item.soldOut}
-         className={`bg-white border border-slate-200 rounded-2xl flex flex-col transition-all hover:border-blue-400 hover:shadow-md active:scale-95 group shadow-sm text-left relative overflow-hidden h-full min-h-[150px] ${item.soldOut || isLocked ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
+         className={`bg-white border border-slate-200 rounded-2xl flex flex-col transition-all hover:border-blue-400 hover:shadow-lg shadow-blue-100 active:scale-95 group shadow-sm text-left relative overflow-hidden h-full min-h-[150px] ${item.soldOut || isLocked ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
       >
          <div className="aspect-[4/3] bg-slate-100 overflow-hidden relative">
             {item.image && !imgError ? (
@@ -2226,6 +2383,12 @@ const ItemTile = ({ item, onAdd, isLocked }) => {
                   alt={item.name}
                   onError={() => setImgError(true)}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+               />
+            ) : item.type === 'COMBO_ITEM' ? (
+               <img
+                  src={`https://picsum.photos/seed/${item.id}/400/300`}
+                  alt={item.name}
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-90"
                />
             ) : (
                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50 p-4">
@@ -2237,7 +2400,7 @@ const ItemTile = ({ item, onAdd, isLocked }) => {
             {/* Floating Price Box */}
             {displayPrice !== null && (
                <div className="absolute bottom-2 right-2 bg-white/95 backdrop-blur-sm border border-slate-100 px-3 py-1.5 rounded-xl shadow-m flex items-center justify-center z-10">
-                  <span className="text-[12px] font-bold text-blue-600 tracking-tighter">{initialConfig.currencySymbol} {displayPrice.toFixed(2)}</span>
+                  <span className="text-[12px] font-bold text-blue-600 tracking-tighter">{config.currencySymbol} {displayPrice.toFixed(2)}</span>
                </div>
             )}
          </div>
@@ -2264,113 +2427,300 @@ const ItemTile = ({ item, onAdd, isLocked }) => {
          </div>
       </button>
    );
-};
+}; const ProductSelectionModal = ({ product, cartItem, onClose, onConfirm, config, dbAddons }) => {
+   const [groupSelections, setGroupSelections] = useState({});
+   const [selectedAddons, setSelectedAddons] = useState(cartItem?.selectedAddons || []);
 
-const ProductSelectionModal = ({ product, cartItem, onClose, onConfirm, initialConfig, dbAddons }) => {
-   const [selectedVariant, setSelectedVariant] = useState(
-      cartItem ? product.variants.find(v => v.displayName === cartItem.variantName) : null
-   );
-   const [selectedAddons, setSelectedAddons] = useState(cartItem?.addons || []);
+   // Initialize selections
+   useEffect(() => {
+      if (cartItem && cartItem.groupSelections) {
+         setGroupSelections(cartItem.groupSelections);
+      } else {
+         const initial = {};
+         (product.optionGroups || []).forEach(group => {
+            if (group.type === 'FIXED') {
+               initial[group.id] = group.items.map(i => ({ ...i, qty: i.qty || 1 }));
+            } else {
+               initial[group.id] = [];
+            }
+         });
+         setGroupSelections(initial);
+      }
+      if (cartItem?.selectedAddons) {
+         setSelectedAddons(cartItem.selectedAddons);
+      }
+   }, [product, cartItem]);
 
-   const isChoice = product.type === 'CHOICE_ITEM';
-   const productAddons = product.addons || [];
+   const handleToggleItem = (group, item) => {
+      if (group.type === 'FIXED') return;
 
-   const handleToggleAddon = (addon) => {
-      setSelectedAddons(prev =>
-         prev.find(a => a.id === addon.id)
-            ? prev.filter(a => a.id !== addon.id)
-            : [...prev, addon]
-      );
+      setGroupSelections(prev => {
+         const currentGroupSel = prev[group.id] || [];
+         const existingIndex = currentGroupSel.findIndex(i => i.id === item.id);
+
+         if (existingIndex > -1) {
+            return { ...prev, [group.id]: currentGroupSel.filter(i => i.id !== item.id) };
+         } else {
+            // Radio-like behavior: If group is single-choice, deselect others
+            let updatedGroupSel = currentGroupSel;
+            if (group.maxSel === 1) {
+               updatedGroupSel = [];
+            }
+
+            // Group maxSel limits the number of distinct items, not total quantity
+            if (updatedGroupSel.length < group.maxSel) {
+               const startQty = Math.max(parseInt(item.qty) || 1, parseInt(item.minQty) || 1);
+               return { ...prev, [group.id]: [...updatedGroupSel, { ...item, qty: startQty }] };
+            }
+            return prev;
+         }
+      });
    };
 
-   const calculateBasePrice = () => {
-      if (isChoice) return selectedVariant ? parseFloat(selectedVariant.price) : 0;
-      return (product.variants || []).reduce((sum, v) => sum + (parseFloat(v.price) * (v.qty || 1)), 0);
+   const updateItemQty = (group, item, delta) => {
+      setGroupSelections(prev => {
+         const currentGroupSel = prev[group.id] || [];
+         const existingIndex = currentGroupSel.findIndex(i => i.id === item.id);
+
+         if (existingIndex === -1) return prev;
+
+         const updated = [...currentGroupSel];
+         const existing = updated[existingIndex];
+         const nextQty = existing.qty + delta;
+
+         const minQty = parseInt(item.minQty) || 1;
+         const maxQty = parseInt(item.maxQty) || 999;
+
+         // Handle removal if nextQty is 0 (and allowed)
+         if (nextQty <= 0) {
+            if (minQty > 0) return prev; // Cannot reduce below minQty
+            return { ...prev, [group.id]: currentGroupSel.filter(i => i.id !== item.id) };
+         }
+
+         if (nextQty < minQty || nextQty > maxQty) return prev;
+
+         // Note: Quantity changes don't affect group selection count limits
+         updated[existingIndex] = { ...existing, qty: nextQty };
+         return { ...prev, [group.id]: updated };
+      });
    };
 
-   const totalAddonsPrice = selectedAddons.reduce((sum, a) => sum + parseFloat(a.price), 0);
-   const finalPrice = calculateBasePrice() + totalAddonsPrice;
+   const handleAddonQty = (addon, delta) => {
+      setSelectedAddons(prev => {
+         const existing = prev.find(a => a.id === addon.id);
+         if (!existing) {
+            if (delta > 0) return [...prev, { ...addon, qty: 1 }];
+            return prev;
+         }
+
+         const nextQty = existing.qty + delta;
+         if (nextQty <= 0) return prev.filter(a => a.id !== addon.id);
+
+         return prev.map(a => a.id === addon.id ? { ...a, qty: nextQty } : a);
+      });
+   };
+
+   const calculateFullPrice = () => {
+      let total = 0;
+      Object.values(groupSelections).forEach(items => {
+         items.forEach(i => {
+            total += (parseFloat(i.price) || 0) * (parseInt(i.qty) || 1);
+         });
+      });
+      selectedAddons.forEach(a => {
+         total += (parseFloat(a.price) || 0) * (parseInt(a.qty) || 1);
+      });
+
+      total += parseFloat(product.price) || 0;
+
+      return total;
+   };
+
+   const isSelectionValid = () => {
+      return (product.optionGroups || []).every(group => {
+         // Group validation is based on number of items selected, not quantity sum
+         const selectedCount = (groupSelections[group.id] || []).length;
+         return selectedCount >= (group.minSel || 0) && selectedCount <= (group.maxSel || 999);
+      });
+   };
 
    return (
       <div className="fixed inset-0 z-[310] flex items-center justify-center p-4">
          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
-         <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
-            <div className={`p-6 pt-4 pb-4 flex justify-between items-center border-b border-slate-50`}>
-               <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 ${isChoice ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'} rounded-xl flex items-center justify-center`}>
-                     {isChoice ? <Layers size={20} /> : <Package size={20} />}
+         <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[95vh]">
+            {/* Modal Header */}
+            <div className="p-8 pb-6 flex justify-between items-center border-b border-slate-50 bg-[#f8fafc]/50">
+               <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-100">
+                     <Layers size={24} />
                   </div>
                   <div>
-                     <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight leading-none">{product.displayName}</h3>
-                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{isChoice ? 'Select Variant' : 'Combo Contents'}</span>
+                     <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight leading-none">{product.displayName || product.name}</h3>
+                     <div className="flex items-center gap-2 mt-2">
+                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-widest border border-indigo-100">Combo Master</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Make your Meal</span>
+                     </div>
                   </div>
                </div>
-               <button onClick={onClose} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-all"><X size={20} /></button>
+               <button onClick={onClose} className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-all active:scale-90"><X size={24} /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto no-scrollbar p-6 pt-4 space-y-6">
-               {/* Left Half: Variants or Contents */}
-               <div>
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                     <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                     {isChoice ? 'Choices' : 'Includes'}
-                  </h4>
-                  {isChoice ? (
-                     <div className="grid grid-cols-3 gap-1.5">
-                        {product.variants.map((variant, i) => (
-                           <button
-                              key={i}
-                              onClick={() => setSelectedVariant(variant)}
-                              className={`w-full p-2.5 px-4 rounded-xl flex items-center justify-between transition-all border-2 group ${selectedVariant?.displayName === variant.displayName ? 'bg-emerald-50 border-emerald-200 shadow-sm' : 'bg-slate-50 border-slate-100/50'}`}
-                           >
-                              <div className="flex items-center gap-3 text-left">
-                                 <div className={`w-5 h-5 rounded-md flex items-center justify-center transition-all ${selectedVariant?.displayName === variant.displayName ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-transparent'}`}>
-                                    <Check size={12} strokeWidth={3} />
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 pt-2 space-y-10">
+               {(product.optionGroups || []).map((group, gIdx) => (
+                  <div key={group.id} className="space-y-5">
+                     <div className="flex items-end justify-between border-b border-slate-100 pb-2">
+                        <div className="flex items-center gap-3">
+                           <div className="text-[15px] font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                              <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
+                              {group.title}
+                           </div>
+                           <span className={`text-[9px] font-black px-2.5 py-1 rounded-full uppercase ${group.type === 'FIXED' ? 'bg-slate-100 text-slate-500' : 'bg-orange-100 text-orange-600'}`}>
+                              {group.type === 'FIXED' ? 'Included' : `Pick ${group.minSel === group.maxSel ? group.minSel : `${group.minSel}-${group.maxSel}`}`}
+                           </span>
+                        </div>
+                        {group.type !== 'FIXED' && (
+                           <div className="flex items-center gap-2">
+                              <span className="text-[9px] font-black text-slate-400 uppercase">Selected Items</span>
+                              <div className="bg-slate-100 px-3 py-1 rounded-lg">
+                                 <span className={`text-xs font-black ${(groupSelections[group.id] || []).length < group.minSel ? 'text-rose-500' : 'text-emerald-600'}`}>
+                                    {(groupSelections[group.id] || []).length}
+                                 </span>
+                                 <span className="text-[10px] font-bold text-slate-400 mx-1">/</span>
+                                 <span className="text-xs font-black text-slate-500">{group.maxSel}</span>
+                              </div>
+                           </div>
+                        )}
+                     </div>
+
+                     <div className="flex flex-wrap gap-4">
+                        {group.items.map((item) => {
+                           const selected = (groupSelections[group.id] || []).find(i => i.id === item.id);
+                           const isSelected = !!selected;
+                           const currentQty = selected?.qty || 0;
+                           const isFixed = group.type === 'FIXED';
+                           const hasQtyControl = (parseInt(item.maxQty) || 1) > 1 && !isFixed && isSelected;
+
+                           return (
+                              <div
+                                 key={item.id}
+                                 onClick={() => !isFixed && handleToggleItem(group, item)}
+                                 className={`min-w-[200px] flex-grow flex-shrink-0 p-3.5 rounded-2xl flex flex-col gap-1 transition-all group border-2 ${isSelected ? (isFixed ? 'bg-slate-50 border-slate-200' : 'bg-blue-50 border-blue-200 shadow-xl shadow-blue-50') : 'bg-white border-slate-100 hover:border-blue-200 shadow-sm'} ${isFixed ? 'cursor-default opacity-80' : 'cursor-pointer active:scale-[0.98]'}`}
+                              >
+                                 <div className="flex flex-col gap-1">
+                                    <div className="flex items-start justify-between gap-3">
+                                       <div className={`text-[14px] font-black uppercase leading-tight transition-colors ${isSelected ? (isFixed ? 'text-slate-500' : 'text-blue-800') : 'text-slate-600'}`}>{item.displayName}</div>
+                                       {isFixed && <span className="text-[8px] font-black bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full uppercase flex-shrink-0">Included</span>}
+                                    </div>
+                                    <div className="flex items-center justify-between mt-2">
+                                       <span className={`text-[10px] font-bold ${isSelected && !isFixed ? 'text-blue-400' : 'text-slate-400'}`}>+{config.currencySymbol}{parseFloat(item.price).toFixed(2)}</span>
+                                       {isFixed ? (
+                                          <span className="text-[12px] font-black text-slate-500 tracking-tighter">×{item.qty}</span>
+                                       ) : (
+                                          <div className="flex flex-col items-end gap-0.5">
+                                             {(parseInt(item.maxQty) > 1 || parseInt(item.minQty) > 1) && (
+                                                <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter opacity-70">
+                                                   Limit: {item.minQty || 1}-{item.maxQty || 1}
+                                                </span>
+                                             )}
+                                          </div>
+                                       )}
+                                    </div>
                                  </div>
-                                 <div>
-                                    <span className={`block text-[13px] font-black uppercase ${selectedVariant?.displayName === variant.displayName ? 'text-emerald-700' : 'text-slate-600'}`}>{variant.displayName}</span>
+
+                                 <div className="mt-auto flex items-center justify-between">
+                                    <div className="flex-1">
+                                       {hasQtyControl && (
+                                          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-0.5 shadow-sm w-fit" onClick={e => e.stopPropagation()}>
+                                             <button
+                                                onClick={(e) => { e.stopPropagation(); updateItemQty(group, item, -1); }}
+                                                className="w-12 h-10 rounded-lg bg-slate-50 flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90"
+                                             >
+                                                <Minus size={16} />
+                                             </button>
+                                             <span className="w-12 text-center text-[15px] font-black text-blue-800">{currentQty}</span>
+                                             <button
+                                                onClick={(e) => { e.stopPropagation(); updateItemQty(group, item, 1); }}
+                                                className="w-12 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95"
+                                             >
+                                                <Plus size={16} />
+                                             </button>
+                                          </div>
+                                       )}
+                                    </div>
+
+                                    {!isFixed && (
+                                       <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isSelected ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-white text-transparent border border-slate-200'}`}>
+                                          <Check size={12} strokeWidth={4} />
+                                       </div>
+                                    )}
                                  </div>
                               </div>
-                              <span className={`text-[15px] font-black tracking-tighter ${selectedVariant?.displayName === variant.displayName ? 'text-emerald-600' : 'text-slate-400'}`}>{initialConfig.currencySymbol} {parseFloat(variant.price).toFixed(2)}</span>
-                           </button>
-                        ))}
+                           );
+                        })}
                      </div>
-                  ) : (
-                     <div className="flex flex-wrap gap-2">
-                        {product.variants.map((item, i) => (
-                           <div key={i} className="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-full flex items-center gap-2">
-                              <span className="text-[10px] font-black text-blue-600 bg-blue-50 w-5 h-5 rounded-full flex items-center justify-center border border-blue-100">{item.qty || 1} x</span>
-                              <span className="text-[11px] font-black text-slate-600 uppercase tracking-tight">{item.displayName}</span>
-                           </div>
-                        ))}
-                     </div>
-                  )}
-               </div>
+                  </div>
+               ))}
 
                {/* Addons Section */}
-               {productAddons.length > 0 && (
-                  <div>
-                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
-                        Addons
-                     </h4>
-                     <div className="grid grid-cols-2 gap-2">
-                        {productAddons.map((addon) => {
-                           const isSelected = selectedAddons.some(a => a.id === addon.id);
+               {(product.addons || []).length > 0 && (
+                  <div className="space-y-6 pt-6 border-t border-slate-100">
+                     <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                           <div className="text-[15px] font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                              <span className="w-1.5 h-6 bg-orange-500 rounded-full"></span>
+                              Extra Addons
+                           </div>
+                           <span className="text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter bg-orange-100 text-orange-600">Optional</span>
+                        </div>
+                     </div>
+                     <div className="flex flex-wrap gap-4">
+                        {product.addons.map((addon) => {
+                           const selected = selectedAddons.find(a => a.id === addon.id);
+                           const isSelected = !!selected;
+                           const currentQty = selected?.qty || 0;
+
                            return (
-                              <button
+                              <div
                                  key={addon.id}
-                                 onClick={() => handleToggleAddon(addon)}
-                                 className={`p-3 rounded-xl flex items-center justify-between transition-all group border-2 ${isSelected ? 'bg-orange-50 border-orange-200 shadow-sm' : 'bg-slate-50 border-slate-100/50'}`}
+                                 onClick={() => isSelected ? setSelectedAddons(prev => prev.filter(a => a.id !== addon.id)) : handleAddonQty(addon, 1)}
+                                 className={`min-w-[200px] flex-grow flex-shrink-0 p-3.5 rounded-3xl flex flex-col gap-2 transition-all group border-2 ${isSelected ? 'bg-orange-50 border-orange-200 shadow-xl shadow-orange-50' : 'bg-white border-slate-100 hover:border-orange-200 shadow-sm'} cursor-pointer active:scale-[0.98]`}
                               >
-                                 <div className="flex items-center gap-2 text-left">
-                                    <div className={`w-4 h-4 rounded flex items-center justify-center transition-all ${isSelected ? 'bg-orange-500 text-white' : 'bg-slate-200 text-transparent'}`}>
-                                       <Check size={10} strokeWidth={4} />
+                                 <div className="flex flex-col gap-1">
+                                    <div className="flex items-start justify-between gap-3">
+                                       <div className={`text-[14px] font-black uppercase leading-tight transition-colors ${isSelected ? 'text-orange-800' : 'text-slate-600'}`}>{addon.displayName}</div>
                                     </div>
-                                    <span className={`text-[11px] font-black uppercase ${isSelected ? 'text-orange-700' : 'text-slate-600'}`}>{addon.displayName}</span>
+                                    <div className="flex items-center justify-between mt-2">
+                                       <span className={`text-[10px] font-bold ${isSelected ? 'text-orange-400' : 'text-slate-400'}`}>+{config.currencySymbol}{parseFloat(addon.price).toFixed(2)}</span>
+                                    </div>
                                  </div>
-                                 <span className={`text-[11px] font-black tracking-tighter ${isSelected ? 'text-orange-600' : 'text-slate-400'}`}>+{parseFloat(addon.price).toFixed(0)}</span>
-                              </button>
+
+                                 <div className="mt-auto flex items-center justify-between">
+                                    <div className="flex-1">
+                                       {isSelected && (
+                                          <div className="flex items-center bg-white border border-orange-100 rounded-xl p-0.5 shadow-sm w-fit" onClick={e => e.stopPropagation()}>
+                                             <button
+                                                onClick={(e) => { e.stopPropagation(); handleAddonQty(addon, -1); }}
+                                                className="w-12 h-10 rounded-lg bg-slate-50 flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90"
+                                             >
+                                                <Minus size={16} />
+                                             </button>
+                                             <span className="w-12 text-center text-[15px] font-black text-orange-900">{currentQty}</span>
+                                             <button
+                                                onClick={(e) => { e.stopPropagation(); handleAddonQty(addon, 1); }}
+                                                className="w-12 h-10 rounded-lg bg-orange-600 text-white flex items-center justify-center hover:bg-orange-700 shadow-lg shadow-orange-100 transition-all active:scale-95"
+                                             >
+                                                <Plus size={16} />
+                                             </button>
+                                          </div>
+                                       )}
+                                    </div>
+
+                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isSelected ? 'bg-orange-600 text-white shadow-lg shadow-orange-100' : 'bg-white text-transparent border border-slate-200'}`}>
+                                       <Check size={12} strokeWidth={4} />
+                                    </div>
+                                 </div>
+                              </div>
                            );
                         })}
                      </div>
@@ -2378,22 +2728,36 @@ const ProductSelectionModal = ({ product, cartItem, onClose, onConfirm, initialC
                )}
             </div>
 
-            <div className="p-6 bg-slate-50 flex items-center gap-6">
+            {/* Modal Footer */}
+            <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center gap-8">
                <div className="flex-1">
-                  <span className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Total Amount</span>
-                  <div className="flex items-baseline gap-1">
-                     <span className="text-2xl font-black text-slate-800 tracking-tighter">{initialConfig.currencySymbol} {finalPrice.toFixed(2)}</span>
-                     {totalAddonsPrice > 0 && <span className="text-[11px] font-bold text-orange-500">({initialConfig.currencySymbol}{calculateBasePrice().toFixed(0)} + {totalAddonsPrice.toFixed(0)})</span>}
+                  <span className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Total Meal Price</span>
+                  <div className="flex items-baseline gap-2">
+                     <span className="text-4xl font-black text-slate-800 tracking-tighter">{config.currencySymbol} {calculateFullPrice().toFixed(2)}</span>
                   </div>
                </div>
-               <button
-                  onClick={() => onConfirm(product, selectedVariant, selectedAddons)}
-                  disabled={isChoice && !selectedVariant}
-                  className={`px-8 py-4 font-black rounded-xl shadow-m active:scale-95 transition-all uppercase text-[11px] tracking-[0.2em] flex items-center gap-2 ${isChoice && !selectedVariant ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'}`}
-               >
-                  {cartItem ? 'Update Order' : 'Add to Cart'}
-                  <Check size={16} />
-               </button>
+               <div className="flex items-center gap-3">
+                  {!isSelectionValid() && (
+                     <div className="flex items-center gap-2 text-rose-500 animate-pulse">
+                        <AlertCircle size={14} />
+                        <span className="text-[10px] font-black uppercase tracking-tight">Check Requirements</span>
+                     </div>
+                  )}
+                  <button
+                     onClick={() => onConfirm({
+                        groupSelections,
+                        selectedAddons,
+                        price: calculateFullPrice()
+                     })}
+                     disabled={!isSelectionValid()}
+                     className={`px-12 py-5 font-black rounded-[2.5rem] shadow-xl active:scale-95 transition-all uppercase text-[12px] tracking-[0.2em] flex items-center gap-3 ${!isSelectionValid() ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200'}`}
+                  >
+                     {cartItem ? 'Update Order' : 'Add to Order'}
+                     <div className="w-7 h-7 bg-white/20 rounded-xl flex items-center justify-center">
+                        <Check size={18} strokeWidth={4} />
+                     </div>
+                  </button>
+               </div>
             </div>
          </motion.div>
       </div>
@@ -2443,9 +2807,9 @@ export const SmallRatePopup = ({ item, onClose, onConfirm, value, setValue }) =>
                </div>
                <div className="grid grid-cols-3 gap-2">
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, '.', 0].map(n => (
-                     <button key={n} onClick={() => setValue(prev => (n === '.' && prev.includes('.') ? prev : (prev === '0' && n !== '.' ? n.toString() : prev + n)))} className="h-14 bg-slate-50 hover:bg-white hover:shadow-md border border-slate-100 rounded-xl font-black text-slate-700 active:scale-95 transition-all">{n}</button>
+                     <button key={n} onClick={() => setValue(prev => (n === '.' && prev.includes('.') ? prev : (prev === '0' && n !== '.' ? n.toString() : prev + n)))} className="h-14 bg-slate-50 hover:bg-white hover:shadow-lg shadow-blue-100 border border-slate-100 rounded-xl font-black text-slate-700 active:scale-95 transition-all">{n}</button>
                   ))}
-                  <button onClick={() => setValue(prev => prev.slice(0, -1))} className="h-14 bg-slate-50 hover:bg-white hover:shadow-md border border-slate-100 rounded-xl font-black text-slate-700 active:scale-95 transition-all text-sm uppercase">Del</button>
+                  <button onClick={() => setValue(prev => prev.slice(0, -1))} className="h-14 bg-slate-50 hover:bg-white hover:shadow-lg shadow-blue-100 border border-slate-100 rounded-xl font-black text-slate-700 active:scale-95 transition-all text-sm uppercase">Del</button>
                </div>
                <div className="grid grid-cols-2 gap-2 mt-4">
                   <button onClick={onClose} className="py-4 bg-slate-100 text-slate-500 font-black rounded-2xl uppercase text-[11px] tracking-widest hover:bg-slate-200 transition-all">Cancel</button>

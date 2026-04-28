@@ -4,7 +4,24 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Users as UsersIcon } from 'lucide-react';
 
 const PaxModal = ({ isOpen, table, paxInput, setPaxInput, onClose, onAccept }) => {
+  const [isFirstEntry, setIsFirstEntry] = React.useState(true);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setIsFirstEntry(true);
+    }
+  }, [isOpen]);
+
   if (!isOpen || !table) return null;
+
+  const handleDigitClick = (n) => {
+    if (isFirstEntry) {
+      setPaxInput(n.toString());
+      setIsFirstEntry(false);
+    } else {
+      setPaxInput(prev => (prev.length < 2 ? prev + n : prev));
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -35,7 +52,14 @@ const PaxModal = ({ isOpen, table, paxInput, setPaxInput, onClose, onAccept }) =
               autoFocus
               type="number"
               value={paxInput}
-              onChange={(e) => setPaxInput(e.target.value)}
+              onFocus={(e) => {
+                e.target.select();
+                setIsFirstEntry(false);
+              }}
+              onChange={(e) => {
+                setPaxInput(e.target.value);
+                setIsFirstEntry(false);
+              }}
               className="w-full bg-transparent text-center text-5xl font-black text-blue-600 outline-none"
               placeholder="0"
             />
@@ -45,26 +69,32 @@ const PaxModal = ({ isOpen, table, paxInput, setPaxInput, onClose, onAccept }) =
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
               <button
                 key={n}
-                onClick={() => setPaxInput(prev => (prev.length < 2 ? prev + n : prev))}
+                onClick={() => handleDigitClick(n)}
                 className="h-14 bg-white border-2 border-slate-100 rounded-2xl font-black text-xl text-slate-700 active:bg-blue-50 transition-all shadow-sm"
               >
                 {n}
               </button>
             ))}
             <button
-              onClick={() => setPaxInput('')}
+              onClick={() => {
+                setPaxInput('');
+                setIsFirstEntry(false);
+              }}
               className="h-14 bg-rose-50 text-rose-500 border-2 border-rose-100 rounded-2xl font-black text-[12px] uppercase active:bg-rose-100 tracking-widest"
             >
               Clear
             </button>
             <button
-              onClick={() => setPaxInput(prev => (prev.length < 2 ? prev + '0' : prev))}
+              onClick={() => handleDigitClick(0)}
               className="h-14 bg-white border-2 border-slate-100 rounded-2xl font-black text-xl text-slate-700 active:bg-blue-50 shadow-sm"
             >
               0
             </button>
             <button
-              onClick={() => setPaxInput(prev => prev.slice(0, -1))}
+              onClick={() => {
+                setPaxInput(prev => prev.toString().slice(0, -1));
+                setIsFirstEntry(false);
+              }}
               className="h-14 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 active:bg-slate-200 flex items-center justify-center text-[12px] uppercase"
             >
               Back

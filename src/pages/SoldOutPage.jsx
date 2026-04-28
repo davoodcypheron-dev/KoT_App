@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { itemsDb, unitsDb } from '../data/mockDb';
-import { getSoldOutTracking, saveToStore, APP_META_STORE } from '../data/idb';
+import { getSoldOutTracking, saveToStore, APP_META_STORE, getAllProducts } from '../data/idb';
 import { ShoppingBag, ArrowLeft, Search, CheckCircle, XCircle, AlertCircle, RefreshCcw, Plus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,10 +15,14 @@ const SoldOutPage = () => {
   // Tracked items: { id, name, qty, isSoldOut }
   const [trackedItems, setTrackedItems] = useState([]);
 
+  const [dbProducts, setDbProducts] = useState([]);
+
   React.useEffect(() => {
     const fetchSoldOut = async () => {
        const data = await getSoldOutTracking();
        setTrackedItems(data || []);
+       const products = await getAllProducts();
+       setDbProducts(products || []);
     };
     fetchSoldOut();
   }, []);
@@ -32,14 +36,22 @@ const SoldOutPage = () => {
   const [showQtyModal, setShowQtyModal] = useState(null);
   const [tempQty, setTempQty] = useState('');
 
+  const allAvailableItems = useMemo(() => {
+    const merged = [
+      ...itemsDb.map(i => ({ ...i, type: 'ITEM' })),
+      ...dbProducts.map(p => ({ ...p, id: p.id, name: p.displayName, type: 'COMBO' }))
+    ];
+    return merged;
+  }, [dbProducts]);
+
   const filteredItems = useMemo(() => {
     if (searchTerm.length >= 3) {
-      return itemsDb.filter(item =>
+      return allAvailableItems.filter(item =>
         item.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    return itemsDb;
-  }, [searchTerm]);
+    return allAvailableItems;
+  }, [searchTerm, allAvailableItems]);
 
   const handleKeypadPress = (val) => {
     if (val === 'C') {
@@ -77,7 +89,6 @@ const SoldOutPage = () => {
 
   const resetAll = async () => {
     await updateTrackedInIDB([]);
-    setSelectedItems([]);
     notify('All stock tracking cleared', 'success');
   };
 
