@@ -198,12 +198,14 @@ export const cookingInstructionsDb = [
 ];
 
 export const ledgersDb = [
+    { id: 'L0', name: 'Credit Sales' },
     { id: 'L1', name: 'Staff Account' },
     { id: 'L2', name: "Director's Account" },
     { id: 'L3', name: 'Corporate Account - TechPark' },
     { id: 'L4', name: 'Promotional Ledger' },
     { id: 'L5', name: 'Zomato Credit' },
-    { id: 'L6', name: 'Swiggy Credit' }
+    { id: 'L6', name: 'Swiggy Credit' },
+    { id: 'L7', name: 'Reg Sales' }
 ];
 
 export const paymentMethodsDb = [

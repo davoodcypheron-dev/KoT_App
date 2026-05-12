@@ -17,7 +17,6 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
   const [custName, setCustName] = useState(selectedCustomer?.name || '');
   const [custMobile, setCustMobile] = useState(selectedCustomer?.mobile || '');
   const [custAddress, setCustAddress] = useState(selectedCustomer?.address || '');
-  const [regNo, setRegNo] = useState(selectedCustomer?.regNo || '');
   const [invoiceDescription, setInvoiceDescription] = useState('');
   const [customerCash, setCustomerCash] = useState('');
   const [payReference, setPayReference] = useState('');
@@ -58,7 +57,6 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
               setCustName(c.name || '');
               setCustMobile(c.mobile || '');
               setCustAddress(c.address || '');
-              setRegNo(c.regNo || '');
               setSelectedCustomer(c);
             }
           }
@@ -67,7 +65,6 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
           setCustName(selectedCustomer.name || '');
           setCustMobile(selectedCustomer.mobile || '');
           setCustAddress(selectedCustomer.address || '');
-          setRegNo(selectedCustomer.regNo || '');
         }
       } catch (e) {
         console.error("Order Load Failed", e);
@@ -95,7 +92,6 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
     setCustName(c.name);
     setCustMobile(c.mobile);
     setCustAddress(c.address);
-    setRegNo(c.regNo);
     setSelectedCustomer(c);
     setShowSuggestions(false);
   };
@@ -107,7 +103,6 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
         name: custName,
         mobile: custMobile,
         address: custAddress,
-        regNo: regNo
       };
 
       await saveCustomer(customer);
@@ -272,15 +267,7 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
                 </div>
               </div>
 
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block ml-1">Reg. Number (TRN/VAT)</label>
-                <input
-                  type="text"
-                  value={regNo}
-                  onChange={(e) => setRegNo(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-100 rounded-xl h-11 px-4 text-xs font-bold text-slate-700 outline-none focus:bg-white focus:border-blue-300 transition-all shadow-inner"
-                />
-              </div>
+
 
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block ml-1">Invoice Description</label>
