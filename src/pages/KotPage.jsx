@@ -14,7 +14,7 @@ import {
    getAllItemAddonLinks, getOrderByTable, generateKotNo, getSoldOutTracking, decrementTrackedItemQuants,
    saveToStore, ORDERS_STORE, ORDER_ITEMS_STORE, ORDER_ITEM_ADDONS_STORE, getOrderById, getOrderItems
 } from '../data/idb';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, warning } from 'framer-motion';
 import SettlementModal from '../components/modals/SettlementModal';
 import OfferModal from '../components/modals/OfferModal';
@@ -36,6 +36,8 @@ const KotPage = () => {
       selectedWaiter, setSelectedWaiter, clearCurrentOrder
    } = useApp();
    const navigate = useNavigate();
+   const location = useLocation();
+   const isBookingFlow = location.state?.isBookingFlow;
 
    const [soldOutTracking, setSoldOutTracking] = useState([]);
    useEffect(() => {
@@ -933,46 +935,48 @@ const KotPage = () => {
             <div className="w-[650px] bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-xl">
                {/* Cart Header Panel */}
                {/* Cart Header Panel / Toolbar */}
-               <div className={`grid ${config.defaultKotType === 'DI' ? 'grid-cols-4' : 'grid-cols-2'} border-b border-slate-100 overflow-hidden shrink-0`}>
-                  {config.defaultKotType === 'DI' && (
-                     <>
-                        <button
-                           onClick={handleTableChangeRequest}
-                           disabled={selectedTable?.status === 'running'}
-                           className="h-16 flex flex-col items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-all group disabled:opacity-40"
-                        >
-                           <TableIcon size={18} className="text-blue-600 mb-1" />
-                           <span className="text-[9px] font-black uppercase text-slate-500">{selectedTable?.id || 'NO TABLE'}</span>
-                        </button>
-                        <button
-                           onClick={() => setShowPaxModal(true)}
-                           disabled={selectedTable?.status === 'running'}
-                           className="h-16 flex flex-col items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-all disabled:opacity-40"
-                        >
-                           <Users size={18} className="text-blue-600 mb-1" />
-                           <span className="text-[9px] font-black uppercase text-slate-500">PAX: {pax}</span>
-                        </button>
-                     </>
-                  )}
-                  <button
-                     onClick={() => setShowCustomerModal(true)}
-                     className="h-16 flex flex-col items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-all"
-                  >
-                     <User size={18} className="text-blue-600 mb-1" />
-                     <span className="text-[9px] font-black uppercase text-slate-500 overflow-hidden whitespace-nowrap px-1">
-                        {selectedCustomer?.name || 'CUSTOMER'}
-                     </span>
-                  </button>
-                  <button
-                     onClick={() => setShowNotesModal(true)}
-                     className="h-16 flex flex-col items-center justify-center hover:bg-slate-50 transition-all"
-                  >
-                     <Clipboard size={18} className="text-blue-600 mb-1" />
-                     <span className="text-[9px] font-black uppercase text-slate-500">
-                        NOTES
-                     </span>
-                  </button>
-               </div>
+               {!isBookingFlow && (
+                  <div className={`grid ${config.defaultKotType === 'DI' ? 'grid-cols-4' : 'grid-cols-2'} border-b border-slate-100 overflow-hidden shrink-0`}>
+                     {config.defaultKotType === 'DI' && (
+                        <>
+                           <button
+                              onClick={handleTableChangeRequest}
+                              disabled={selectedTable?.status === 'running'}
+                              className="h-16 flex flex-col items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-all group disabled:opacity-40"
+                           >
+                              <TableIcon size={18} className="text-blue-600 mb-1" />
+                              <span className="text-[9px] font-black uppercase text-slate-500">{selectedTable?.id || 'NO TABLE'}</span>
+                           </button>
+                           <button
+                              onClick={() => setShowPaxModal(true)}
+                              disabled={selectedTable?.status === 'running'}
+                              className="h-16 flex flex-col items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-all disabled:opacity-40"
+                           >
+                              <Users size={18} className="text-blue-600 mb-1" />
+                              <span className="text-[9px] font-black uppercase text-slate-500">PAX: {pax}</span>
+                           </button>
+                        </>
+                     )}
+                     <button
+                        onClick={() => setShowCustomerModal(true)}
+                        className="h-16 flex flex-col items-center justify-center border-r border-slate-100 hover:bg-slate-50 transition-all"
+                     >
+                        <User size={18} className="text-blue-600 mb-1" />
+                        <span className="text-[9px] font-black uppercase text-slate-500 overflow-hidden whitespace-nowrap px-1">
+                           {selectedCustomer?.name || 'CUSTOMER'}
+                        </span>
+                     </button>
+                     <button
+                        onClick={() => setShowNotesModal(true)}
+                        className="h-16 flex flex-col items-center justify-center hover:bg-slate-50 transition-all"
+                     >
+                        <Clipboard size={18} className="text-blue-600 mb-1" />
+                        <span className="text-[9px] font-black uppercase text-slate-500">
+                           NOTES
+                        </span>
+                     </button>
+                  </div>
+               )}
 
                {/* Cart Listing */}
                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 bg-[#f8fafc]">
@@ -1136,68 +1140,96 @@ const KotPage = () => {
                      )}
                   </AnimatePresence>
 
-                  <div className="flex justify-between items-center mb-4">
-                     <div className="flex items-center gap-2">
-                        {/* Offer Button */}
-                        <button
-                           onClick={() => {
-                              if (isBilled) {
-                                 setShowOfferAuth(true);
-                              } else {
-                                 setShowOfferModal(true);
-                              }
-                           }}
-                           disabled={isCartEmpty}
-                           className={`h-12 px-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border active:scale-95 shadow-sm flex items-center justify-center gap-2 disabled:opacity-40 ${isDelivery ? 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700' : 'bg-rose-50 text-rose-500 border-rose-100 hover:bg-rose-100'}`}
-                        >
-                           <Tag size={16} />
-                           <span>{isDelivery ? 'Apply Offer' : 'Offer'}</span>
-                        </button>
-
-                        {/* Discount Button (Hidden for Delivery) */}
-                        {!isDelivery && (
+                  {!isBookingFlow && (
+                     <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-2">
+                           {/* Offer Button */}
                            <button
                               onClick={() => {
-                                 // After Save Bill (isBilled), only auth discount is allowed
-                                 if (isBilled || initialConfig.authDisocuntOnly) {
-                                    setShowDiscountAuth(true);
+                                 if (isBilled) {
+                                    setShowOfferAuth(true);
                                  } else {
-                                    setShowDiscountModal(true);
+                                    setShowOfferModal(true);
                                  }
                               }}
                               disabled={isCartEmpty}
-                              className="h-12 px-5 bg-amber-50 text-amber-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-100 transition-all border border-amber-100 active:scale-95 shadow-sm flex items-center justify-center gap-2 disabled:opacity-40"
+                              className={`h-12 px-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border active:scale-95 shadow-sm flex items-center justify-center gap-2 disabled:opacity-40 ${isDelivery ? 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700' : 'bg-rose-50 text-rose-500 border-rose-100 hover:bg-rose-100'}`}
                            >
-                              <Percent size={16} />
-                              <span>Discount</span>
+                              <Tag size={16} />
+                              <span>{isDelivery ? 'Apply Offer' : 'Offer'}</span>
                            </button>
-                        )}
-                     </div>
 
-                     <div className="flex items-center gap-3">
-                        <div className="flex flex-col items-end text-right">
-                           {orderDiscount.amount > 0 && (
-                              <span className="text-[10px] font-bold text-amber-500 line-through decoration-amber-300 decoration-2 leading-none mb-1">
-                                 {config.currencySymbol}{(calculateTotal() * (1 + config.taxRate / 100)).toFixed(2)}
-                              </span>
+                           {/* Discount Button (Hidden for Delivery) */}
+                           {!isDelivery && (
+                              <button
+                                 onClick={() => {
+                                    // After Save Bill (isBilled), only auth discount is allowed
+                                    if (isBilled || initialConfig.authDisocuntOnly) {
+                                       setShowDiscountAuth(true);
+                                    } else {
+                                       setShowDiscountModal(true);
+                                    }
+                                 }}
+                                 disabled={isCartEmpty}
+                                 className="h-12 px-5 bg-amber-50 text-amber-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-100 transition-all border border-amber-100 active:scale-95 shadow-sm flex items-center justify-center gap-2 disabled:opacity-40"
+                              >
+                                 <Percent size={16} />
+                                 <span>Discount</span>
+                              </button>
                            )}
-                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1.5">Net Payable</span>
-                           <span className="text-3xl font-black text-slate-800 leading-none">
-                              {config.currencySymbol}
-                              {((calculateTotal() * (1 + config.taxRate / 100)) - orderDiscount.amount - calculateOffersDiscount()).toFixed(2)}
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                           <div className="flex flex-col items-end text-right">
+                              {orderDiscount.amount > 0 && (
+                                 <span className="text-[10px] font-bold text-amber-500 line-through decoration-amber-300 decoration-2 leading-none mb-1">
+                                    {config.currencySymbol}{(calculateTotal() * (1 + config.taxRate / 100)).toFixed(2)}
+                                 </span>
+                              )}
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1.5">Net Payable</span>
+                              <span className="text-3xl font-black text-slate-800 leading-none">
+                                 {config.currencySymbol}
+                                 {((calculateTotal() * (1 + config.taxRate / 100)) - orderDiscount.amount - calculateOffersDiscount()).toFixed(2)}
+                              </span>
+                           </div>
+                           <button
+                              onClick={() => setShowBreakdown(!showBreakdown)}
+                              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${showBreakdown ? 'bg-blue-600 text-white shadow-xl scale-105' : 'bg-slate-100 text-slate-400 hover:bg-slate-200 shadow-sm'}`}
+                           >
+                              <Info size={24} />
+                           </button>
+                        </div>
+                     </div>
+                  )}
+
+                  {isBookingFlow && (
+                     <div className="flex justify-between items-center mb-4 px-2">
+                        <div className="flex flex-col">
+                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Booking Subtotal</span>
+                           <span className="text-2xl font-black text-blue-600">
+                              {config.currencySymbol}{((calculateTotal() * (1 + config.taxRate / 100))).toFixed(2)}
                            </span>
                         </div>
-                        <button
-                           onClick={() => setShowBreakdown(!showBreakdown)}
-                           className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${showBreakdown ? 'bg-blue-600 text-white shadow-xl scale-105' : 'bg-slate-100 text-slate-400 hover:bg-slate-200 shadow-sm'}`}
-                        >
-                           <Info size={24} />
-                        </button>
+                        <div className="flex items-center gap-2 text-slate-400">
+                           <ShoppingBag size={20} />
+                           <span className="text-[10px] font-black uppercase tracking-widest">Item Selection Mode</span>
+                        </div>
                      </div>
-                  </div>
+                  )}
 
-                  <div className="flex gap-2 h-16 mt-2">
-                     {isBilled ? (
+                   <div className="flex gap-2 h-16 mt-2">
+                     {isBookingFlow ? (
+                        <button
+                           onClick={() => {
+                              navigate('/bookings', { state: { isBookingReturn: true } });
+                           }}
+                           disabled={isCartEmpty}
+                           className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+                        >
+                           <ShoppingBag size={18} />
+                           Proceed to Booking
+                        </button>
+                     ) : isBilled ? (
                         <button
                            onClick={() => initiateSettlement('settle')}
                            disabled={isCartEmpty}

@@ -13,7 +13,8 @@ const MultiPaymentsModal = ({
   setMultiPayments, 
   onClose, 
   onProcess,
-  notify 
+  notify,
+  title = "Multi-Payment Settlement"
 }) => {
   const [amountEntry, setAmountEntry] = useState({ show: false, type: null, name: '' });
   const [tempAmount, setTempAmount] = useState('');
@@ -95,7 +96,7 @@ const MultiPaymentsModal = ({
           <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center"><CreditCard size={20} /></div>
-              <h3 className="text-xl font-black text-slate-800 tracking-tight">Multi-Payment Settlement</h3>
+              <h3 className="text-xl font-black text-slate-800 tracking-tight">{title}</h3>
             </div>
             <button onClick={onClose} className="w-10 h-10 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all"><X size={20} /></button>
           </div>
@@ -135,7 +136,10 @@ const MultiPaymentsModal = ({
           <div className="flex-1 flex flex-col min-h-0 bg-white">
             <div className="px-6 pt-4 pb-2 shrink-0 flex justify-between items-center">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Added Payments</span>
-              <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest border border-blue-100 font-mono">Total Paid: ₹{totalPaid.toFixed(2)}</span>
+              <div className="flex gap-2">
+                <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full uppercase tracking-widest border border-slate-200 font-mono">Net Payable: ₹{total.toFixed(2)}</span>
+                <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest border border-blue-100 font-mono">Total Paid: ₹{totalPaid.toFixed(2)}</span>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-2 custom-scrollbar min-h-[200px]">

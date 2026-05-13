@@ -14,15 +14,7 @@ const LoginPage = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const resetData = async () => {
-       try {
-          await clearAllData();
-          console.log("IndexedDB cleared on Login load.");
-       } catch (e) {
-          console.error("Failed to clear IndexedDB", e);
-       }
-    };
-    resetData();
+    // Persistent session initialized
   }, []);
 
   const handleLogin = (e) => {

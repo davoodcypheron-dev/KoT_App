@@ -16,7 +16,23 @@ const AmountEntryModal = ({
   onClose, 
   onAdd 
 }) => {
+  const refInputRef = React.useRef(null);
+
   if (!isOpen) return null;
+
+  const handleAmountKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      refInputRef.current?.focus();
+    }
+  };
+
+  const handleRefKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onAdd();
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -35,13 +51,12 @@ const AmountEntryModal = ({
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block ml-1">Amount</label>
                   <div className="relative">
                     <input
+                      autoFocus
                       value={tempAmount}
                       onFocus={(e) => {
-                        if (!isAmountModified) {
-                          setTempAmount('');
-                          setIsAmountModified(true);
-                        }
+                        e.target.select();
                       }}
+                      onKeyDown={handleAmountKeyDown}
                       onChange={(e) => {
                         setTempAmount(e.target.value);
                         setIsAmountModified(true);
@@ -55,7 +70,9 @@ const AmountEntryModal = ({
                 <div>
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block ml-1">Reference</label>
                   <input
+                    ref={refInputRef}
                     value={tempNote}
+                    onKeyDown={handleRefKeyDown}
                     onChange={(e) => setTempNote(e.target.value)}
                     placeholder="Ref #"
                     className="w-full bg-slate-50 border border-slate-100 rounded-xl h-11 px-4 text-xs font-bold text-slate-600 outline-none focus:bg-white focus:border-blue-200 transition-all shadow-inner"

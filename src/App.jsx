@@ -167,7 +167,7 @@ const TopPanel = ({ onRefresh }) => {
         </button>
         <button
           onClick={() => { releaseSelection(); navigate('/bookings'); }}
-          className={`h-11 px-4 rounded-xl flex items-center gap-2 transition-all font-black text-[10px] uppercase tracking-wider ${location.pathname === '/bookings' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}
+          className={`h-11 px-4 rounded-xl flex items-center gap-2 transition-all font-black text-[10px] uppercase tracking-wider ${location.pathname === '/bookings' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}
         >
           <Calendar size={16} /> Bookings
         </button>

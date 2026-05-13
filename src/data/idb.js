@@ -1,5 +1,5 @@
 const DB_NAME = 'KotAppDB';
-const DB_VERSION = 7; // Schema V7: Ensures all stores like 'bookings' are created
+const DB_VERSION = 8; // Schema V8: Ensures 'bookings' store exists
 
 // Existing Stores
 export const ADDONS_STORE = 'addons';

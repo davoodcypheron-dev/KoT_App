@@ -4,8 +4,9 @@ import {
     Calendar, Clock, Users, User, Phone, MapPin,
     Tag, Plus, X, Search, CheckCircle2, AlertCircle,
     Trash2, ShoppingCart, Armchair, Bike, Wallet,
-    ChevronRight, ArrowLeft, Info, Bell, Layers, FileText
+    ChevronRight, ArrowLeft, Info, Bell, Layers, FileText, Check, ShoppingBag
 } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import {
     tablesDb, floorsDb, customersDb, itemsDb, organizersDb, groupsDb
@@ -18,11 +19,11 @@ import {
 } from '../data/idb';
 import MultiPaymentsModal from '../components/modals/MultiPaymentsModal';
 import AuthorizerModal from '../components/modals/AuthorizerModal';
-import { useNavigate } from 'react-router-dom';
 
 const BookingsPage = () => {
-    const { config, notify, selectedCustomer, setSelectedCustomer } = useApp();
+    const location = useLocation();
     const navigate = useNavigate();
+    const { config, setConfig, cart: globalCart, setCart: setGlobalCart, notify, selectedCustomer, setSelectedCustomer } = useApp();
     const [activeTab, setActiveTab] = useState('DINE'); // DINE or DELIVERY
     const [bookings, setBookings] = useState([]);
     const [customers, setCustomers] = useState([]);
@@ -44,7 +45,7 @@ const BookingsPage = () => {
     // Form States - Dine In
     const [pax, setPax] = useState(2);
     const [selectedTableId, setSelectedTableId] = useState(null);
-    const [vacantTables, setVacantTables] = useState([]);
+
 
     // Form States - Delivery
     const [cart, setCart] = useState([]);
@@ -52,16 +53,26 @@ const BookingsPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [activeGroup, setActiveGroup] = useState(groupsDb[0]?.id);
     const [deliveryDiscount, setDeliveryDiscount] = useState(0);
-    const [newCustomer, setNewCustomer] = useState({ name: '', mobile: '', address: '', regNumber: '' });
+    const [newCustomer, setNewCustomer] = useState({ name: '', mobile: '', address: '' });
 
     // Advance Payment State
     const [showPayment, setShowPayment] = useState(false);
     const [advanceAmount, setAdvanceAmount] = useState(0);
     const [tempBookingData, setTempBookingData] = useState(null);
     const [multiPayments, setMultiPayments] = useState([]);
+    const [showAuth, setShowAuth] = useState(false);
+
+    useEffect(() => {
+        if (location.state?.isBookingReturn) {
+            setCart(globalCart);
+            setShowNewBooking(true);
+            setActiveTab('DELIVERY');
+            setCurrentStep(2);
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state, globalCart]);
 
     // Auth State
-    const [showAuth, setShowAuth] = useState(false);
     const [bookingToCancel, setBookingToCancel] = useState(null);
 
     const [dbProducts, setDbProducts] = useState([]);
@@ -70,6 +81,12 @@ const BookingsPage = () => {
 
     const subTotal = useMemo(() => cart.reduce((acc, i) => acc + (i.price * i.qty), 0), [cart]);
     const totalAmount = useMemo(() => subTotal - parseFloat(deliveryDiscount || 0), [subTotal, deliveryDiscount]);
+
+    useEffect(() => {
+        if (activeTab === 'DELIVERY') {
+            setAdvanceAmount(totalAmount);
+        }
+    }, [totalAmount, activeTab]);
 
     const filteredBookings = useMemo(() => {
         return bookings.filter(b => {
@@ -84,15 +101,13 @@ const BookingsPage = () => {
         loadBookings();
         loadIdbData();
         loadCustomers();
-        if (activeTab === 'DINE') {
-            loadVacantTables();
-        }
     }, [activeTab]);
 
     const loadBookings = async () => {
         try {
             const data = await getAllBookings();
-            setBookings(data.filter(b => b.status === 'CONFIRMED' || b.status === 'REACHED'));
+            // Show all bookings that aren't cancelled or archived
+            setBookings(data.filter(b => b.status !== 'CANCELLED' && b.status !== 'ARCHIVED'));
         } catch (e) {
             console.error(e);
         }
@@ -123,20 +138,19 @@ const BookingsPage = () => {
         }
     };
 
-    const loadVacantTables = async () => {
-        setVacantTables(tablesDb.filter(t => t.status === 'vacant'));
-    };
+    const vacantTables = useMemo(() => {
+        return tablesDb.filter(t => t.status === 'vacant');
+    }, [tablesDb, showNewBooking]); // re-calculate when modal opens or tablesDb changes reference (though it rarely does)
 
     const ensureCustomer = async () => {
         const name = newCustomer.name || selectedCustomer?.name;
         const mobile = newCustomer.mobile || selectedCustomer?.mobile;
         const address = newCustomer.address || selectedCustomer?.address || '';
-        const regNumber = newCustomer.regNumber || selectedCustomer?.regNumber || '';
 
         let dbCust = await getCustomerByMobile(mobile);
 
         if (dbCust) {
-            dbCust = { ...dbCust, name, address, regNumber };
+            dbCust = { ...dbCust, name, address };
             await saveCustomer(dbCust);
             return dbCust;
         } else {
@@ -145,7 +159,6 @@ const BookingsPage = () => {
                 name,
                 mobile,
                 address,
-                regNumber,
                 createdTime: new Date().toISOString()
             };
             await saveCustomer(newCustRecord);
@@ -173,7 +186,6 @@ const BookingsPage = () => {
                 customerName: customerInfo.name,
                 customerMobile: customerInfo.mobile,
                 customerAddress: customerInfo.address,
-                customerRegNo: customerInfo.regNumber,
                 bookingTime: bTime.toISOString(),
                 reminderTime: rTime.toISOString(),
                 createdTime: editingBooking?.createdTime || new Date().toISOString(),
@@ -202,14 +214,17 @@ const BookingsPage = () => {
         }
     };
 
-    const handlePaymentSuccess = async (paymentDetails) => {
+    const handlePaymentSuccess = async (msg, paymentData) => {
         if (!tempBookingData) return;
 
         try {
+            const payments = paymentData.splitPayments || [];
+            const totalPaid = payments.reduce((acc, p) => acc + parseFloat(p.amount), 0);
+
             const finalBooking = {
                 ...tempBookingData,
-                advancePaid: paymentDetails.totalPaid,
-                paymentDetails: paymentDetails.payments
+                advancePaid: totalPaid,
+                paymentDetails: payments
             };
 
             await saveBooking(finalBooking);
@@ -233,7 +248,7 @@ const BookingsPage = () => {
         setRemarks('');
         setCart([]);
         setAdvanceAmount(0);
-        setNewCustomer({ name: '', mobile: '', address: '', regNumber: '' });
+        setNewCustomer({ name: '', mobile: '', address: '' });
         setCurrentStep(1);
         setTempBookingData(null);
     };
@@ -263,8 +278,7 @@ const BookingsPage = () => {
         setNewCustomer({
             name: booking.customerName || '',
             mobile: booking.customerMobile || '',
-            address: booking.customerAddress || '',
-            regNumber: booking.customerRegNo || ''
+            address: booking.customerAddress || ''
         });
 
         if (booking.type === 'DINE') {
@@ -312,7 +326,7 @@ const BookingsPage = () => {
                     <div className="flex bg-slate-100 p-1.5 rounded-[1.5rem] shadow-inner gap-1">
                         <button
                             onClick={() => setActiveTab('DINE')}
-                            className={`px-8 h-12 rounded-2xl font-black text-[11px] uppercase tracking-wider flex items-center gap-2 transition-all ${activeTab === 'DINE' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                            className={`px-8 h-12 rounded-2xl font-black text-[11px] uppercase tracking-wider flex items-center gap-2 transition-all ${activeTab === 'DINE' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
                         >
                             <Armchair size={16} /> Dine-In
                         </button>
@@ -325,7 +339,16 @@ const BookingsPage = () => {
                     </div>
 
                     <button
-                        onClick={() => { clearForm(); setShowNewBooking(true); }}
+                        onClick={() => {
+                            if (activeTab === 'DELIVERY') {
+                                setGlobalCart([]);
+                                setConfig({ ...config, defaultKotType: 'DE' });
+                                navigate('/kot', { state: { isBookingFlow: true } });
+                            } else {
+                                clearForm();
+                                setShowNewBooking(true);
+                            }
+                        }}
                         className="h-14 px-8 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] flex items-center gap-3 transition-all active:scale-95 shadow-lg shadow-emerald-100"
                     >
                         <Plus size={20} strokeWidth={3} /> New Booking
@@ -340,7 +363,7 @@ const BookingsPage = () => {
                                 <button
                                     key={t}
                                     onClick={() => setFilterType(t)}
-                                    className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${filterType === t ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${filterType === t ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
                                     {t}
                                 </button>
@@ -353,7 +376,7 @@ const BookingsPage = () => {
                                 type="date"
                                 value={filterDate}
                                 onChange={(e) => setFilterDate(e.target.value)}
-                                className="h-10 pl-10 pr-4 bg-white border border-slate-100 rounded-xl text-[11px] font-black outline-none focus:border-indigo-300 shadow-sm"
+                                className="h-10 pl-10 pr-4 bg-white border border-slate-100 rounded-xl text-[11px] font-black outline-none focus:border-blue-300 shadow-sm"
                             />
                         </div>
                     </div>
@@ -386,7 +409,7 @@ const BookingsPage = () => {
 
                             <div className="py-2 px-4 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white ${activeTab === 'DINE' ? 'bg-indigo-600 shadow-indigo-100' : 'bg-blue-600 shadow-blue-100'}`}>
+                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white ${activeTab === 'DINE' ? 'bg-blue-600 shadow-blue-100' : 'bg-blue-600 shadow-blue-100'}`}>
                                         {activeTab === 'DINE' ? <Armchair size={24} /> : <Bike size={24} />}
                                     </div>
                                     <div>
@@ -405,7 +428,7 @@ const BookingsPage = () => {
                                 <div className="flex items-center gap-3 bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
                                     {[1, 2, 3].map(s => (
                                         <div key={s} className="flex items-center gap-2">
-                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${currentStep === s ? (activeTab === 'DINE' ? 'bg-indigo-600 text-white' : 'bg-blue-600 text-white') : (currentStep > s ? 'bg-emerald-500 text-white' : 'bg-white text-slate-300 border border-slate-200')}`}>
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${currentStep === s ? (activeTab === 'DINE' ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white') : (currentStep > s ? 'bg-emerald-500 text-white' : 'bg-white text-slate-300 border border-slate-200')}`}>
                                                 {currentStep > s ? <CheckCircle2 size={12} /> : s}
                                             </div>
                                             {s < 3 && <div className={`w-8 h-[2px] rounded-full ${currentStep > s ? 'bg-emerald-500' : 'bg-slate-200'}`} />}
@@ -432,7 +455,10 @@ const BookingsPage = () => {
                                         remarks={remarks} setRemarks={setRemarks}
                                         vacantTables={vacantTables}
                                         onSave={handleSaveDineBooking}
-                                        onCompletePayment={() => setShowPayment(true)}
+                                        onCompletePayment={() => {
+                                            setMultiPayments([]);
+                                            setShowPayment(true);
+                                        }}
                                         newCustomer={newCustomer}
                                         setNewCustomer={setNewCustomer}
                                         isProcessing={isProcessing}
@@ -440,10 +466,15 @@ const BookingsPage = () => {
                                     />
                                 ) : (
                                     <DeliveryFlow
+                                        location={location}
+                                        globalCart={globalCart}
+                                        setGlobalCart={setGlobalCart}
                                         customers={customers}
                                         setCustomers={setCustomers}
                                         currentStep={currentStep}
                                         setCurrentStep={setCurrentStep}
+                                        setActiveTab={setActiveTab}
+                                        setShowNewBooking={setShowNewBooking}
                                         bookingDate={bookingDate} setBookingDate={setBookingDate}
                                         bookingTime={bookingTime} setBookingTime={setBookingTime}
                                         reminderTime={reminderTime} setReminderTime={setReminderTime}
@@ -470,7 +501,6 @@ const BookingsPage = () => {
                                                     customerName: customerInfo.name,
                                                     customerMobile: customerInfo.mobile,
                                                     customerAddress: customerInfo.address,
-                                                    customerRegNo: customerInfo.regNumber,
                                                     bookingTime: `${bookingDate}T${bookingTime}:00`,
                                                     reminderTime: `${bookingDate}T${reminderTime}:00`,
                                                     createdTime: editingBooking?.createdTime || new Date().toISOString(),
@@ -502,7 +532,10 @@ const BookingsPage = () => {
                                                 setIsProcessing(false);
                                             }
                                         }}
-                                        onCompletePayment={() => setShowPayment(true)}
+                                        onCompletePayment={() => {
+                                            setMultiPayments([]);
+                                            setShowPayment(true);
+                                        }}
                                         newCustomer={newCustomer}
                                         setNewCustomer={setNewCustomer}
                                         subTotal={subTotal}
@@ -525,7 +558,7 @@ const BookingsPage = () => {
                 notify={notify}
                 onClose={() => setShowPayment(false)}
                 onProcess={handlePaymentSuccess}
-                title="Advance Deposit"
+                title="Multi-Payment Advance"
             />
 
             <AuthorizerModal
@@ -544,11 +577,11 @@ const BookingCard = ({ booking, onCancel, onEdit }) => {
     const isDine = booking.type === 'DINE';
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white border border-slate-100 rounded-[2.5rem] p-6 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
-            <div className={`absolute top-0 right-0 w-24 h-24 blur-3xl opacity-10 -mr-12 -mt-12 ${isDine ? 'bg-indigo-600' : 'bg-blue-600'}`} />
+            <div className={`absolute top-0 right-0 w-24 h-24 blur-3xl opacity-10 -mr-12 -mt-12 ${isDine ? 'bg-blue-600' : 'bg-blue-600'}`} />
 
             <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDine ? 'bg-indigo-50 text-indigo-600' : 'bg-blue-50 text-blue-600'}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDine ? 'bg-blue-50 text-blue-600' : 'bg-blue-50 text-blue-600'}`}>
                         {isDine ? <Armchair size={20} /> : <Bike size={20} />}
                     </div>
                     <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">{isDine ? 'Reservation' : 'Booking'}</span>
@@ -572,11 +605,11 @@ const BookingCard = ({ booking, onCancel, onEdit }) => {
                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Date & Time</span>
                         <div className="flex flex-col gap-0.5">
                             <div className="flex items-center gap-1.5 font-bold text-slate-500">
-                                <Calendar size={10} className="text-indigo-500" />
+                                <Calendar size={10} className="text-blue-500" />
                                 <span className="text-[10px] uppercase">{new Date(booking.bookingTime).toLocaleDateString([], { day: '2-digit', month: 'short' })}</span>
                             </div>
                             <div className="flex items-center gap-1.5 font-bold text-slate-600">
-                                <Clock size={12} className="text-indigo-500" />
+                                <Clock size={12} className="text-blue-500" />
                                 <span className="text-xs">{new Date(booking.bookingTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             </div>
                         </div>
@@ -585,7 +618,7 @@ const BookingCard = ({ booking, onCancel, onEdit }) => {
                         <div>
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Table</span>
                             <div className="flex items-center gap-1.5 font-bold text-slate-600">
-                                <Tag size={12} className="text-indigo-500" />
+                                <Tag size={12} className="text-blue-500" />
                                 <span className="text-xs">#{booking.tableId}</span>
                             </div>
                         </div>
@@ -603,7 +636,7 @@ const BookingCard = ({ booking, onCancel, onEdit }) => {
                         </div>
                     </div>
                     <div className="flex gap-2">
-                        <button onClick={() => onEdit(booking)} className="w-9 h-9 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center hover:bg-indigo-500 hover:text-white transition-all">
+                        <button onClick={() => onEdit(booking)} className="w-9 h-9 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center hover:bg-blue-500 hover:text-white transition-all">
                             <FileText size={16} />
                         </button>
                         <button onClick={() => onCancel(booking.id)} className="w-9 h-9 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all">
@@ -627,8 +660,7 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
             .filter(c => {
                 return (
                     c.name?.toLowerCase().includes(query) ||
-                    c.mobile?.includes(query) ||
-                    c.regNumber?.toLowerCase().includes(query)
+                    c.mobile?.includes(query)
                 );
             })
             .slice(0, 5);
@@ -646,24 +678,50 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="flex-1 overflow-y-auto no-scrollbar p-5">
                 {currentStep === 1 && (
-                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-10">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
                             <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Select Available Table</h3>
                         </div>
-                        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                            {vacantTables.map(t => (
-                                <button
-                                    key={t.id}
-                                    onClick={() => setSelectedTableId(t.id)}
-                                    className={`h-28 rounded-[2rem] flex flex-col items-center justify-center transition-all border-2 ${selectedTableId === t.id ? 'bg-indigo-600 text-white shadow-xl scale-105 border-indigo-700' : 'bg-white text-slate-500 border-slate-100 hover:border-indigo-200 hover:bg-slate-50/50'}`}
-                                >
-                                    <Armchair size={24} className={selectedTableId === t.id ? 'text-indigo-200' : 'text-slate-200'} strokeWidth={1.5} />
-                                    <span className="text-xs font-black uppercase mt-2">{t.id}</span>
-                                    <span className="text-[10px] font-bold opacity-60">CAP: {t.capacity}</span>
-                                </button>
-                            ))}
-                        </div>
+
+                        {floorsDb.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center p-10 bg-white rounded-3xl border border-dashed border-slate-200">
+                                <Armchair size={48} className="text-slate-200 mb-4" />
+                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No floor data available</p>
+                            </div>
+                        ) : floorsDb.map(floor => {
+                            const floorTables = vacantTables.filter(t => t.floor === floor.id);
+                            if (floorTables.length === 0) return null;
+
+                            return (
+                                <div key={floor.id} className="space-y-4">
+                                    <div className="flex items-center gap-3 px-2">
+                                        <div className="h-[1px] flex-1 bg-slate-100" />
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">{floor.name}</span>
+                                        <div className="h-[1px] flex-1 bg-slate-100" />
+                                    </div>
+                                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                        {floorTables.map(t => (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => setSelectedTableId(t.id)}
+                                                className={`h-28 rounded-[2rem] flex flex-col items-center justify-center transition-all border-2 ${selectedTableId === t.id ? 'bg-blue-600 text-white shadow-xl scale-105 border-blue-700' : 'bg-white text-slate-500 border-slate-100 hover:border-blue-200 hover:bg-slate-50/50'}`}
+                                            >
+                                                <Armchair size={24} className={selectedTableId === t.id ? 'text-blue-200' : 'text-slate-200'} strokeWidth={1.5} />
+                                                <span className="text-xs font-black uppercase mt-2">{t.id}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {vacantTables.length === 0 && floorsDb.length > 0 && (
+                            <div className="flex flex-col items-center justify-center p-10 bg-white rounded-3xl border border-dashed border-slate-200">
+                                <Armchair size={48} className="text-slate-200 mb-4" />
+                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No vacant tables available</p>
+                            </div>
+                        )}
                     </motion.div>
                 )}
 
@@ -672,7 +730,7 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
                         <div className="space-y-8">
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3 mb-2">
-                                    <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+                                    <div className="w-1.5 h-6 bg-blue-500 rounded-full" />
                                     <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">Customer Information</h3>
                                 </div>
                                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
@@ -692,7 +750,7 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
                                                         setShowSuggestions(true);
                                                     }}
                                                     placeholder="Guest Name"
-                                                    className="w-full h-11 bg-slate-50 border border-slate-100 rounded-xl px-4 text-xs font-black focus:bg-white focus:border-indigo-300 transition-all"
+                                                    className="w-full h-11 bg-slate-50 border border-slate-100 rounded-xl px-4 text-xs font-black focus:bg-white focus:border-blue-300 transition-all"
                                                 />
                                                 <AnimatePresence>
                                                     {showSuggestions && custSearch && (
@@ -700,7 +758,7 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
                                                             {filteredCusts.length > 0 ? filteredCusts.map(c => (
                                                                 <button key={c.id} onClick={() => {
                                                                     setSelectedCustomer(c);
-                                                                    setNewCustomer({ name: c.name, mobile: c.mobile, address: c.address || '', regNumber: c.regNumber || '' });
+                                                                    setNewCustomer({ name: c.name, mobile: c.mobile, address: c.address || '' });
                                                                     setShowSuggestions(false);
                                                                     setCustSearch('');
                                                                 }} className="w-full p-3 flex justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-all text-left">
@@ -726,7 +784,7 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
                                                         setShowSuggestions(true);
                                                     }}
                                                     placeholder="Mobile Number"
-                                                    className="w-full h-11 bg-slate-50 border border-slate-100 rounded-xl px-4 text-xs font-black focus:bg-white focus:border-indigo-300 transition-all"
+                                                    className="w-full h-11 bg-slate-50 border border-slate-100 rounded-xl px-4 text-xs font-black focus:bg-white focus:border-blue-300 transition-all"
                                                 />
                                             </div>
                                             <div className="space-y-1 sm:col-span-2">
@@ -736,19 +794,10 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
                                                     value={newCustomer.address}
                                                     onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
                                                     placeholder="Address"
-                                                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-xs font-black focus:bg-white focus:border-indigo-300 transition-all resize-none outline-none"
+                                                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-xs font-black focus:bg-white focus:border-blue-300 transition-all resize-none outline-none"
                                                 />
                                             </div>
-                                            <div className="space-y-1 sm:col-span-2">
-                                                <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Reg Number *</label>
-                                                <input
-                                                    type="text"
-                                                    value={newCustomer.regNumber}
-                                                    onChange={(e) => setNewCustomer({ ...newCustomer, regNumber: e.target.value })}
-                                                    placeholder="Reg Number"
-                                                    className="w-full h-11 bg-slate-50 border border-slate-100 rounded-xl px-4 text-xs font-black focus:bg-white focus:border-indigo-300 transition-all"
-                                                />
-                                            </div>
+
                                         </div>
                                     </div>
                                 </div>
@@ -759,7 +808,7 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
                                     <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
                                     <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">Special Remarks</h3>
                                 </div>
-                                <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Any special requests or notes..." className="w-full h-25 bg-white border border-slate-100 rounded-2xl p-5 text-xs font-black text-slate-700 shadow-sm focus:border-indigo-300 transition-all resize-none outline-none" />
+                                <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Any special requests or notes..." className="w-full h-25 bg-white border border-slate-100 rounded-2xl p-5 text-xs font-black text-slate-700 shadow-sm focus:border-blue-300 transition-all resize-none outline-none" />
                             </div>
                         </div>
 
@@ -775,14 +824,14 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block ml-1">Reservation Date</label>
                                             <div className="relative">
                                                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
-                                                <input type="date" value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="w-full h-12 bg-slate-50 rounded-xl pl-12 pr-4 text-xs font-black outline-none border border-slate-100 focus:border-indigo-300" />
+                                                <input type="date" value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="w-full h-12 bg-slate-50 rounded-xl pl-12 pr-4 text-xs font-black outline-none border border-slate-100 focus:border-blue-300" />
                                             </div>
                                         </div>
                                         <div>
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block ml-1">Arrival Time</label>
                                             <div className="relative">
                                                 <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
-                                                <input type="time" value={bookingTime} onChange={(e) => setBookingTime(e.target.value)} className="w-full h-12 bg-slate-50 rounded-xl pl-12 pr-4 text-xs font-black outline-none border border-slate-100 focus:border-indigo-300" />
+                                                <input type="time" value={bookingTime} onChange={(e) => setBookingTime(e.target.value)} className="w-full h-12 bg-slate-50 rounded-xl pl-12 pr-4 text-xs font-black outline-none border border-slate-100 focus:border-blue-300" />
                                             </div>
                                         </div>
                                     </div>
@@ -802,21 +851,21 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block ml-1">Reminder Time</label>
                                             <div className="relative">
                                                 <Bell className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
-                                                <input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} className="w-full h-12 bg-slate-50 rounded-xl pl-12 pr-4 text-xs font-black outline-none border border-slate-100 focus:border-indigo-300 uppercase" />
+                                                <input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} className="w-full h-12 bg-slate-50 rounded-xl pl-12 pr-4 text-xs font-black outline-none border border-slate-100 focus:border-blue-300 uppercase" />
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100 border-dashed">
+                            <div className="bg-blue-50/50 p-3 rounded-2xl border border-blue-100 border-dashed">
                                 <div className="flex items-start gap-4">
-                                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0">
+                                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0">
                                         <Tag size={18} />
                                     </div>
                                     <div>
-                                        <h4 className="text-[11px] font-black text-indigo-900 uppercase">Selected Table: #{selectedTableId}</h4>
-                                        <p className="text-[10px] text-indigo-400 font-bold mt-1">Ground Floor • {pax} Guests • {bookingDate} @ {bookingTime}</p>
+                                        <h4 className="text-[11px] font-black text-blue-900 uppercase">Selected Table: #{selectedTableId}</h4>
+                                        <p className="text-[10px] text-blue-400 font-bold mt-1">Ground Floor • {pax} Guests • {bookingDate} @ {bookingTime}</p>
                                     </div>
                                 </div>
                             </div>
@@ -827,7 +876,7 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
                 {currentStep === 3 && (
                     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-xl mx-auto space-y-8 py-3">
                         <div className="text-center space-y-2">
-                            <div className="w-18 h-18 bg-indigo-100 text-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-2 shadow-sm">
+                            <div className="w-18 h-18 bg-blue-100 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-2 shadow-sm">
                                 <Wallet size={40} />
                             </div>
                             <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Advance Payment</h3>
@@ -840,10 +889,11 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
                                 <input
                                     type="number"
                                     autoFocus
+                                    onFocus={(e) => e.target.select()}
                                     value={advanceAmount}
                                     onChange={(e) => setAdvanceAmount(parseFloat(e.target.value) || 0)}
-                                    className="w-full text-3xl font-black text-center text-indigo-600 bg-slate-50 rounded-2xl h-16 outline-none placeholder:text-slate-200 border border-slate-100 focus:bg-white focus:border-indigo-300 transition-all"
-                                    placeholder="0.00"
+                                    className="w-full text-3xl font-black text-center text-blue-600 bg-slate-50 rounded-2xl h-16 outline-none placeholder:text-slate-200 border border-slate-100 focus:bg-white focus:border-blue-300 transition-all"
+                                    placeholder="0"
                                 />
                             </div>
 
@@ -875,7 +925,7 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
                     {currentStep === 1 && (
                         <button
                             onClick={() => selectedTableId ? setCurrentStep(2) : notify('Please select a table', 'error')}
-                            className="h-14 px-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-100 active:scale-95 flex items-center gap-2"
+                            className="h-14 px-12 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg shadow-blue-100 active:scale-95 flex items-center gap-2"
                         >
                             Next Details <ChevronRight size={16} strokeWidth={3} />
                         </button>
@@ -892,7 +942,7 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
                             <button
                                 onClick={handleProceedToPayment}
                                 disabled={isProcessing}
-                                className="h-14 px-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-100 active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                                className="h-14 px-12 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg shadow-blue-100 active:scale-95 flex items-center gap-2 disabled:opacity-50"
                             >
                                 Proceed to Payment <ChevronRight size={16} strokeWidth={3} />
                             </button>
@@ -913,8 +963,9 @@ const DineInFlow = ({ customers, setCustomers, currentStep, setCurrentStep, book
     );
 };
 
-const DeliveryFlow = ({ customers, setCustomers, currentStep, setCurrentStep, bookingDate, setBookingDate, bookingTime, setBookingTime, reminderTime, setReminderTime, cart, setCart, remarks, setRemarks, searchTerm, setSearchTerm, activeGroup, setActiveGroup, deliveryDiscount, setDeliveryDiscount, advanceAmount, setAdvanceAmount, onSaveDelivery, onCompletePayment, newCustomer, setNewCustomer, subTotal, totalAmount, isProcessing, isLoading }) => {
-    const { setSelectedCustomer, selectedCustomer, notify } = useApp();
+const DeliveryFlow = ({ location, globalCart, setGlobalCart, customers, setCustomers, currentStep, setCurrentStep, setActiveTab, setShowNewBooking, bookingDate, setBookingDate, bookingTime, setBookingTime, reminderTime, setReminderTime, cart, setCart, remarks, setRemarks, searchTerm, setSearchTerm, activeGroup, setActiveGroup, deliveryDiscount, setDeliveryDiscount, advanceAmount, setAdvanceAmount, onSaveDelivery, onCompletePayment, newCustomer, setNewCustomer, subTotal, totalAmount, isProcessing, isLoading }) => {
+    const { setSelectedCustomer, selectedCustomer, notify, config, setConfig } = useApp();
+    const navigate = useNavigate();
     const [custSearch, setCustSearch] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -925,30 +976,11 @@ const DeliveryFlow = ({ customers, setCustomers, currentStep, setCurrentStep, bo
             .filter(c => {
                 return (
                     c?.name?.toLowerCase().includes(query) ||
-                    c?.mobile?.includes(query) ||
-                    c?.regNumber?.toLowerCase().includes(query)
+                    c?.mobile?.includes(query)
                 );
             })
             .slice(0, 5);
     }, [custSearch, customers]);
-
-    const filteredItems = useMemo(() => {
-        let items = itemsDb;
-        if (activeGroup) items = items.filter(i => i.groupId === activeGroup);
-        if (searchTerm) items = items.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
-        return items;
-    }, [activeGroup, searchTerm]);
-
-    const addToCart = (item) => {
-        setCart(prev => {
-            const existing = prev.find(i => i.id === item.id);
-            if (existing) return prev.map(i => i.id === item.id ? { ...i, qty: i.qty + 1 } : i);
-            return [...prev, { ...item, qty: 1, isSaved: false }];
-        });
-        notify(`${item.name} added to booking`, 'success');
-    };
-
-    // Totals are now passed as props from parent
 
     const handleSaveDirect = async () => {
         if (!selectedCustomer && (!newCustomer.name || !newCustomer.mobile)) {
@@ -956,123 +988,19 @@ const DeliveryFlow = ({ customers, setCustomers, currentStep, setCurrentStep, bo
         }
         if (cart.length === 0) return notify('Please add items to the booking', 'error');
 
-        onSaveDelivery(true); // true for direct save
+        onSaveDelivery(true);
     };
 
     return (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 {currentStep === 1 && (
-                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex-1 flex overflow-hidden">
-                        {/* Left: Cart Summary (KOT Style) */}
-                        <div className="w-[380px] border-r border-slate-100 bg-white flex flex-col overflow-hidden shrink-0">
-                            <div className="p-6 border-b border-slate-50 bg-slate-50/30">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-                                        <ShoppingCart size={20} />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Order Items</h3>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{cart.length} Products Added</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-3">
-                                {cart.length === 0 ? (
-                                    <div className="h-full flex flex-col items-center justify-center text-slate-200 grayscale opacity-40">
-                                        <ShoppingCart size={60} strokeWidth={1} />
-                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] mt-4 text-center">Your basket <br />is empty</p>
-                                    </div>
-                                ) : cart.map(item => (
-                                    <motion.div layout initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} key={item.id} className="flex justify-between items-center group p-3 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all">
-                                        <div className="flex flex-col min-w-0">
-                                            <span className="text-[11px] font-black text-slate-700 uppercase truncate">{item.name}</span>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <span className="text-[10px] font-bold text-slate-400">{item.qty} x ₹{item.price}</span>
-                                                {item.type && <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-indigo-50 text-indigo-500 rounded-md tracking-widest">{item.type}</span>}
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3 shrink-0">
-                                            <span className="text-[11px] font-black text-slate-800">₹{(item.qty * item.price).toFixed(2)}</span>
-                                            <button onClick={() => setCart(prev => prev.filter(i => i.id !== item.id))} className="w-8 h-8 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl flex items-center justify-center transition-all opacity-0 group-hover:opacity-100">
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    </motion.div>
-                                ))}
-                            </div>
-
-                            <div className="p-6 bg-slate-50/50 border-t border-slate-100 space-y-3 shrink-0">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subtotal</span>
-                                    <span className="text-sm font-black text-slate-700">₹{subTotal.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between items-center group">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Add Discount</span>
-                                    <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-lg px-2 py-1 shadow-sm">
-                                        <Tag size={12} className="text-rose-400" />
-                                        <input
-                                            type="number"
-                                            value={deliveryDiscount}
-                                            onChange={(e) => setDeliveryDiscount(parseFloat(e.target.value) || 0)}
-                                            className="w-16 h-6 text-right text-[11px] font-black text-rose-500 outline-none"
-                                            placeholder="0.00"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="pt-3 border-t border-slate-200 flex justify-between items-center">
-                                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Payable Total</span>
-                                    <span className="text-2xl font-black text-slate-800 tracking-tight">₹{totalAmount.toFixed(2)}</span>
-                                </div>
-                            </div>
+                    <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-6">
+                        <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-3xl flex items-center justify-center animate-pulse">
+                            <ShoppingBag size={40} />
                         </div>
-
-                        {/* Right: Item Selection */}
-                        <div className="flex-1 flex flex-col min-w-0">
-                            {/* Categories */}
-                            <div className="p-6 bg-white border-b border-slate-50 shrink-0 shadow-sm z-10">
-                                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                                    {groupsDb.map(g => (
-                                        <button
-                                            key={g.id}
-                                            onClick={() => setActiveGroup(g.id)}
-                                            className={`px-6 h-12 rounded-[1.2rem] font-black text-[10px] uppercase tracking-[0.15em] whitespace-nowrap transition-all border-2 ${activeGroup === g.id ? 'bg-indigo-600 text-white border-indigo-700 shadow-lg shadow-indigo-100' : 'bg-slate-50 text-slate-400 border-slate-100 hover:bg-slate-100'}`}
-                                        >
-                                            {g.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Items Grid */}
-                            <div className="flex-1 overflow-y-auto no-scrollbar p-6 bg-slate-50/20">
-                                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                    {filteredItems.map(item => (
-                                        <button
-                                            key={item.id}
-                                            onClick={() => addToCart(item)}
-                                            className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-indigo-200 hover:scale-[1.02] transition-all text-left flex flex-col group relative overflow-hidden h-36"
-                                        >
-                                            <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-50 blur-2xl opacity-0 group-hover:opacity-100 transition-all" />
-                                            <div className="flex-1 flex flex-col justify-between relative">
-                                                <div className="flex justify-between items-start gap-2">
-                                                    <h4 className="text-[12px] font-black text-slate-800 uppercase leading-snug group-hover:text-indigo-600 transition-colors">{item.name}</h4>
-                                                    {item.type === 'COMBO_ITEM' && <Layers size={14} className="text-amber-400 shrink-0" />}
-                                                </div>
-                                                <div className="flex justify-between items-end">
-                                                    <span className="text-[13px] font-black text-slate-400 group-hover:text-slate-900 transition-all">₹{item.price}</span>
-                                                    <div className="w-8 h-8 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
-                                                        <Plus size={16} strokeWidth={3} />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </motion.div>
+                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Redirecting to Menu...</h3>
+                    </div>
                 )}
 
                 {currentStep === 2 && (
@@ -1082,7 +1010,7 @@ const DeliveryFlow = ({ customers, setCustomers, currentStep, setCurrentStep, bo
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3 mb-2">
                                         <div className="w-1.5 h-6 bg-blue-500 rounded-full" />
-                                        <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">Customer Information</h3>
+                                        <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">Customer Information <span className="text-blue-500 opacity-50">({customers?.length || 0})</span></h3>
                                     </div>
                                     <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4">
                                         {/* Integrated Customer Search via Name/Mobile */}
@@ -1094,6 +1022,7 @@ const DeliveryFlow = ({ customers, setCustomers, currentStep, setCurrentStep, bo
                                                     <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Guest Name *</label>
                                                     <input
                                                         type="text"
+                                                        autoFocus
                                                         value={newCustomer.name}
                                                         onChange={(e) => {
                                                             const val = e.target.value;
@@ -1101,25 +1030,31 @@ const DeliveryFlow = ({ customers, setCustomers, currentStep, setCurrentStep, bo
                                                             setCustSearch(val);
                                                             setShowSuggestions(true);
                                                         }}
+                                                        onFocus={() => setShowSuggestions(true)}
                                                         placeholder="Guest Name"
                                                         className="w-full h-11 bg-slate-50 border border-slate-100 rounded-xl px-4 text-xs font-black focus:bg-white focus:border-blue-300 transition-all"
                                                     />
                                                     <AnimatePresence>
                                                         {showSuggestions && custSearch && (
-                                                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-full left-0 right-0 z-50 mt-1 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+                                                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-full left-0 right-0 z-[1000] mt-1 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden min-h-[50px]">
                                                                 {filteredCusts.length > 0 ? filteredCusts.map(c => (
                                                                     <button key={c.id} onClick={() => {
                                                                         setSelectedCustomer(c);
-                                                                        setNewCustomer({ name: c.name, mobile: c.mobile, address: c.address || '', regNumber: c.regNumber || '' });
+                                                                        setNewCustomer({ name: c.name, mobile: c.mobile, address: c.address || '' });
                                                                         setShowSuggestions(false);
                                                                         setCustSearch('');
-                                                                    }} className="w-full p-3 flex justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-all text-left">
+                                                                    }} className="w-full p-4 flex justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-all text-left">
                                                                         <div className="flex flex-col">
                                                                             <span className="font-black text-slate-800 text-[10px] uppercase">{c.name}</span>
                                                                             <span className="text-[9px] font-bold text-slate-400">{c.mobile}</span>
                                                                         </div>
+                                                                        <ChevronRight size={14} className="text-blue-500" />
                                                                     </button>
-                                                                )) : null}
+                                                                )) : (
+                                                                    <div className="p-5 text-center">
+                                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">No matching customers found</span>
+                                                                    </div>
+                                                                )}
                                                             </motion.div>
                                                         )}
                                                     </AnimatePresence>
@@ -1135,9 +1070,34 @@ const DeliveryFlow = ({ customers, setCustomers, currentStep, setCurrentStep, bo
                                                             setCustSearch(val);
                                                             setShowSuggestions(true);
                                                         }}
+                                                        onFocus={() => setShowSuggestions(true)}
                                                         placeholder="Mobile Number"
                                                         className="w-full h-11 bg-slate-50 border border-slate-100 rounded-xl px-4 text-xs font-black focus:bg-white focus:border-blue-300 transition-all"
                                                     />
+                                                    <AnimatePresence>
+                                                        {showSuggestions && custSearch && (
+                                                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-full left-0 right-0 z-[1000] mt-1 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden min-h-[50px]">
+                                                                {filteredCusts.length > 0 ? filteredCusts.map(c => (
+                                                                    <button key={c.id} onClick={() => {
+                                                                        setSelectedCustomer(c);
+                                                                        setNewCustomer({ name: c.name, mobile: c.mobile, address: c.address || '' });
+                                                                        setShowSuggestions(false);
+                                                                        setCustSearch('');
+                                                                    }} className="w-full p-4 flex justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-all text-left">
+                                                                        <div className="flex flex-col">
+                                                                            <span className="font-black text-slate-800 text-[10px] uppercase">{c.name}</span>
+                                                                            <span className="text-[9px] font-bold text-slate-400">{c.mobile}</span>
+                                                                        </div>
+                                                                        <ChevronRight size={14} className="text-blue-500" />
+                                                                    </button>
+                                                                )) : (
+                                                                    <div className="p-5 text-center">
+                                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">No matching customers found</span>
+                                                                    </div>
+                                                                )}
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
                                                 </div>
                                                 <div className="space-y-1 sm:col-span-2">
                                                     <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Address *</label>
@@ -1149,16 +1109,7 @@ const DeliveryFlow = ({ customers, setCustomers, currentStep, setCurrentStep, bo
                                                         className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-xs font-black focus:bg-white focus:border-blue-300 transition-all resize-none outline-none"
                                                     />
                                                 </div>
-                                                <div className="space-y-1 sm:col-span-2">
-                                                    <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Reg Number *</label>
-                                                    <input
-                                                        type="text"
-                                                        value={newCustomer.regNumber}
-                                                        onChange={(e) => setNewCustomer({ ...newCustomer, regNumber: e.target.value })}
-                                                        placeholder="Reg Number"
-                                                        className="w-full h-11 bg-slate-50 border border-slate-100 rounded-xl px-4 text-xs font-black focus:bg-white focus:border-blue-300 transition-all"
-                                                    />
-                                                </div>
+
                                             </div>
                                         </div>
                                     </div>
@@ -1238,10 +1189,11 @@ const DeliveryFlow = ({ customers, setCustomers, currentStep, setCurrentStep, bo
                                 <input
                                     type="number"
                                     autoFocus
+                                    onFocus={(e) => e.target.select()}
                                     value={advanceAmount}
                                     onChange={(e) => setAdvanceAmount(parseFloat(e.target.value) || 0)}
                                     className="w-full text-5xl font-black text-center text-blue-600 outline-none placeholder:text-slate-100"
-                                    placeholder="0.00"
+                                    placeholder="0"
                                 />
                             </div>
 
