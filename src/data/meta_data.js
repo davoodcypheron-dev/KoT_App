@@ -141,8 +141,13 @@ export const itemsDb = [
     { id: 'I47', name: 'Butterscotch', arName: 'بوتيرسكوتش', price: 130, groupId: 'G8', dietType: 'veg', unitId: 'U1', openItem: false, image: 'https://images.unsplash.com/photo-1505394033343-43adc2f44488?w=400' },
     { id: 'I48', name: 'Kulfi Falooda', arName: 'كولفي فالودة', price: 190, groupId: 'G8', dietType: 'veg', unitId: 'U1', openItem: false, image: 'https://images.unsplash.com/photo-1571115177098-24ec42ed204d?w=400' },
     { id: 'I49', name: 'Sizzling Brownie', arName: 'براوني سيزلينج', price: 250, groupId: 'G8', dietType: 'veg', unitId: 'U1', openItem: false, image: 'https://images.unsplash.com/photo-1564355808539-22fda35bed7e?w=400' },
-    { id: 'I50', name: 'Death by Chocolate', arName: 'الموت بالشوكولاتة', price: 280, groupId: 'G8', dietType: 'veg', unitId: 'U1', openItem: true, image: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=400' }
-];
+    { id: 'I50', name: 'Death by Chocolate', arName: 'الموت بالشوكولاتة', price: 280, groupId: 'G8', dietType: 'veg', unitId: 'U1', openItem: true, image: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=400' },
+
+    { id: 'I56', name: 'CREAMY SHAWAYA - QTR', price: 150, groupId: 'G9', dietType: 'non-veg', unitId: 'U1', openItem: false },
+    { id: 'I57', name: 'CREAMY SHAWAYA - HALF', price: 290, groupId: 'G9', dietType: 'non-veg', unitId: 'U1', openItem: false },
+    { id: 'I58', name: 'CREAMY SHAWAYA - FULL', price: 560, groupId: 'G9', dietType: 'non-veg', unitId: 'U1', openItem: false },
+]
+    ;
 
 export const floorsDb = [
     { id: 'F1', name: 'Ground Floor' },

@@ -853,12 +853,15 @@ const KotPage = () => {
                price: item.price,
                itemTax: 0, // calculate if itemsDb has tax % mapping later
                isParcel: item.isParcel || false,
-               cookingInstructions: item.modifiers || [],
+               cookingInstructions: item.notes || item.modifiers || [],
                offerDetails: null, // applied offer logic per item
                status: 'active',
                cancelReason: null,
                cancelTime: null,
-               addedTime: new Date().toISOString()
+               addedTime: new Date().toISOString(),
+               type: item.type || null,
+               groupSelections: item.groupSelections || null,
+               selectedAddons: item.selectedAddons || null
             };
 
             await saveToStore(ORDER_ITEMS_STORE, dbOrderItem);
@@ -1751,7 +1754,7 @@ const KotPage = () => {
                               price: item.price,
                               itemTax: 0,
                               isParcel: item.isParcel || false,
-                              cookingInstructions: item.modifiers || [],
+                              cookingInstructions: item.notes || item.modifiers || [],
                               offerDetails: null,
                               status: 'active',
                               cancelReason: null,
@@ -2273,7 +2276,7 @@ const CartRow = ({ item, onQtyChange, onCancel, onExtras, onPriceChange, onRateE
                )}
                <div className="flex flex-col gap-1 mt-2">
                   {/* Categorized Addons Line */}
-                  {(item.selectedAddons || (item.addons && item.addons.length > 0)) && (
+                  {((item.selectedAddons && item.selectedAddons.length > 0) || (item.addons && item.addons.length > 0)) && (
                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mr-1 opacity-70">Addons:</span>
                         {item.selectedAddons && item.selectedAddons.map((addon, i) => (
@@ -2309,7 +2312,7 @@ const CartRow = ({ item, onQtyChange, onCancel, onExtras, onPriceChange, onRateE
                )}
                <div className="flex items-center justify-center gap-3">
                   <button
-                     disabled={isLocked}
+                     disabled={isLocked || item.isSaved}
                      onClick={() => onQtyChange(item.cartId, -1)}
                      className="w-8 h-8 rounded-lg bg-rose-100 hover:bg-rose-200 flex items-center justify-center text-rose-600 shadow-inner disabled:opacity-30 disabled:cursor-not-allowed"
                   >
@@ -2322,7 +2325,7 @@ const CartRow = ({ item, onQtyChange, onCancel, onExtras, onPriceChange, onRateE
                      className="w-8 h-8 text-center bg-transparent text-sm font-bold text-slate-600 rounded focus:border focus:border-slate-400 focus:outline-none"
                   />
                   <button
-                     disabled={isLocked}
+                     disabled={isLocked || item.isSaved}
                      onClick={() => onQtyChange(item.cartId, 1)}
                      className="w-8 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center text-white shadow-lg active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed"
                   >
@@ -2348,15 +2351,17 @@ const CartRow = ({ item, onQtyChange, onCancel, onExtras, onPriceChange, onRateE
             </div>
 
             <div className="flex flex-col justify-between items-end ml-4 shrink-0 h-full py-1 min-h-[60px]">
-               <button
-                  onClick={onExtras}
-                  disabled={isLocked}
-                  className="w-8 h-8 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center hover:bg-blue-50 hover:text-blue-500 transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-100"
-                  title="Preferences"
-               >
-                  <Info size={14} />
-               </button>
-               {(showAddonButton || item.groupSelections) && (
+               {!item.isSaved && (
+                  <button
+                     onClick={onExtras}
+                     disabled={isLocked}
+                     className="w-8 h-8 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center hover:bg-blue-50 hover:text-blue-500 transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-100"
+                     title="Preferences"
+                  >
+                     <Info size={14} />
+                  </button>
+               )}
+               {!item.isSaved && (showAddonButton || item.groupSelections) && (
                   <button
                      onClick={() => onAddon(item.cartId)}
                      disabled={isLocked}
@@ -2631,7 +2636,7 @@ const ItemTile = ({ item, onAdd, isLocked, config }) => {
                            const isSelected = !!selected;
                            const currentQty = selected?.qty || 0;
                            const isFixed = group.type === 'FIXED';
-                           const hasQtyControl = (parseInt(item.maxQty) || 1) > 1 && !isFixed && isSelected;
+                           const hasQtyControl = (parseInt(item.maxQty) || 1) > 1 && isSelected;
 
                            return (
                               <div
@@ -2647,7 +2652,7 @@ const ItemTile = ({ item, onAdd, isLocked, config }) => {
                                     <div className="flex items-center justify-between mt-2">
                                        <span className={`text-[10px] font-bold ${isSelected && !isFixed ? 'text-blue-400' : 'text-slate-400'}`}>+{config.currencySymbol}{parseFloat(item.price).toFixed(2)}</span>
                                        {isFixed ? (
-                                          <span className="text-[12px] font-black text-slate-500 tracking-tighter">×{item.qty}</span>
+                                          <span className="text-[12px] font-black text-slate-500 tracking-tighter">×{currentQty}</span>
                                        ) : (
                                           <div className="flex flex-col items-end gap-0.5">
                                              {(parseInt(item.maxQty) > 1 || parseInt(item.minQty) > 1) && (

@@ -32,6 +32,11 @@ const ProductChoiceMaster = () => {
   const [status, setStatus] = useState(true);
   const [editingId, setEditingId] = useState(null);
 
+  // Product Base Item State
+  const [productBaseItemSearch, setProductBaseItemSearch] = useState('');
+  const [selectedProductBaseItem, setSelectedProductBaseItem] = useState(null);
+  const [showProductItemSuggestions, setShowProductItemSuggestions] = useState(false);
+
   // Unified Product Structure (Option Groups)
   const [optionGroups, setOptionGroups] = useState([]);
 
@@ -57,7 +62,6 @@ const ProductChoiceMaster = () => {
   const [itemQty, setItemQty] = useState('1');
   const [itemMinQty, setItemMinQty] = useState('1');
   const [itemMaxQty, setItemMaxQty] = useState('1');
-  const [variantTaxIncluded, setVariantTaxIncluded] = useState(false);
 
   // Right Pane Addons States
   const [availableAddons, setAvailableAddons] = useState([]);
@@ -111,6 +115,18 @@ const ProductChoiceMaster = () => {
     if (!variantDisplayName.trim()) setVariantDisplayName(item.name);
     setVariantPrice(item.price.toFixed(2));
     setShowItemSuggestions(false);
+  };
+
+  const filteredProductBaseItems = itemsDb.filter(item =>
+    item.name.toLowerCase().includes(productBaseItemSearch.toLowerCase()) ||
+    item.id.toLowerCase().includes(productBaseItemSearch.toLowerCase())
+  );
+
+  const handleSelectProductBaseItem = (item) => {
+    setSelectedProductBaseItem(item);
+    setProductBaseItemSearch(`${item.id} - ${item.name}`);
+    if (!productDisplayName.trim()) setProductDisplayName(item.name);
+    setShowProductItemSuggestions(false);
   };
 
   const handleOpenGroupModal = (group = null) => {
@@ -175,7 +191,6 @@ const ProductChoiceMaster = () => {
       setItemQty(item.qty.toString());
       setItemMinQty(item.minQty.toString());
       setItemMaxQty(item.maxQty.toString());
-      setVariantTaxIncluded(item.taxIncluded);
     } else {
       setEditingItemId(null);
       setSelectedBaseItem(null);
@@ -185,7 +200,6 @@ const ProductChoiceMaster = () => {
       setItemQty('1');
       setItemMinQty('1');
       setItemMaxQty('1');
-      setVariantTaxIncluded(false);
     }
     setShowItemModal(true);
   };
@@ -202,7 +216,6 @@ const ProductChoiceMaster = () => {
       itemName: selectedBaseItem.name,
       displayName: variantDisplayName,
       price: price,
-      taxIncluded: variantTaxIncluded,
       qty: qty,
       minQty: parseInt(itemMinQty) || 1,
       maxQty: parseInt(itemMaxQty) || 1
@@ -256,6 +269,8 @@ const ProductChoiceMaster = () => {
 
     const productData = {
       type: 'COMBO_ITEM',
+      baseItemId: selectedProductBaseItem?.id || null,
+      baseItemName: selectedProductBaseItem?.name || null,
       displayName: productDisplayName,
       image: productImage,
       branch: selectedBranch,
@@ -283,6 +298,8 @@ const ProductChoiceMaster = () => {
 
   const handleClear = () => {
     setProductDisplayName('');
+    setProductBaseItemSearch('');
+    setSelectedProductBaseItem(null);
     setProductImage(null);
     setSelectedBranch('Antigravity Kitchen');
     setStatus(true);
@@ -296,7 +313,6 @@ const ProductChoiceMaster = () => {
     setItemQty('1');
     setItemMinQty('1');
     setItemMaxQty('1');
-    setVariantTaxIncluded(false);
     notify('Form cleared', 'info');
   };
 
@@ -322,6 +338,13 @@ const ProductChoiceMaster = () => {
   const handleEditProduct = (product) => {
     setEditingId(product.id);
     setProductDisplayName(product.displayName);
+    if (product.baseItemId && product.baseItemName) {
+      setSelectedProductBaseItem({ id: product.baseItemId, name: product.baseItemName });
+      setProductBaseItemSearch(`${product.baseItemId} - ${product.baseItemName}`);
+    } else {
+      setSelectedProductBaseItem(null);
+      setProductBaseItemSearch('');
+    }
     setProductImage(product.image || null);
     setSelectedBranch(product.branch || 'Antigravity Kitchen');
     setStatus(product.status === 'Active');
@@ -377,7 +400,7 @@ const ProductChoiceMaster = () => {
               </div>
               <div className="p-3">
 
-                <div className="grid grid-cols-12 gap-3 mb-2 items-end">
+                <div className="grid grid-cols-12 gap-3 mb-2 items-start">
                   <div className="col-span-2 space-y-1">
                     <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Branch *</label>
                     <select
@@ -390,6 +413,32 @@ const ProductChoiceMaster = () => {
                       ))}
                     </select>
                   </div>
+                  <div className="col-span-3 space-y-1 relative">
+                    <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Base Item</label>
+                    <input
+                      type="text"
+                      placeholder="Search base item..."
+                      value={productBaseItemSearch}
+                      onChange={(e) => { setProductBaseItemSearch(e.target.value); setShowProductItemSuggestions(true); }}
+                      onFocus={() => setShowProductItemSuggestions(true)}
+                      className="w-full h-8 border border-slate-300 rounded-sm px-2 text-xs outline-none focus:border-blue-400 bg-white font-bold"
+                    />
+                    <AnimatePresence>
+                      {showProductItemSuggestions && productBaseItemSearch.length > 0 && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setShowProductItemSuggestions(false)} />
+                          <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl z-20 max-h-48 overflow-y-auto rounded-lg no-scrollbar">
+                            {filteredProductBaseItems.length > 0 ? filteredProductBaseItems.map(item => (
+                              <button key={item.id} onClick={() => handleSelectProductBaseItem(item)} className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-50 last:border-0 transition-colors">
+                                <div className="text-[10px] font-black text-slate-800">{item.name}</div>
+                                <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{item.id} • ₹{item.price}</div>
+                              </button>
+                            )) : <div className="p-4 text-center text-slate-300 text-[10px] font-bold">No items found</div>}
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
                   <div className="col-span-4 space-y-1">
                     <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Product Display Name *</label>
                     <input
@@ -400,12 +449,12 @@ const ProductChoiceMaster = () => {
                       className="w-full h-8 border border-slate-300 rounded-sm px-2 text-xs outline-none focus:border-blue-400 font-bold"
                     />
                   </div>
-                  <div className="col-span-1 space-y-1">
+                  <div className="col-span-2 space-y-1">
                     <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">Status</label>
                     <div className="flex items-center h-8">
                       <button
                         onClick={() => setStatus(!status)}
-                        className={`w-20 h-7 border border-slate-300 flex items-center relative overflow-hidden transition-all duration-300 ${status ? 'bg-[#e6f3ff]' : 'bg-white'}`}
+                        className={`w-24 h-7 border border-slate-300 flex items-center relative overflow-hidden transition-all duration-300 ${status ? 'bg-[#e6f3ff]' : 'bg-white'}`}
                       >
                         {status ? (
                           <>
@@ -422,7 +471,7 @@ const ProductChoiceMaster = () => {
                     </div>
                   </div>
                   <div className="col-span-1 flex flex-col items-center">
-                    <div className="relative group">
+                    <div className="relative group mt-1">
                       <input
                         type="file"
                         accept="image/*"
@@ -432,12 +481,12 @@ const ProductChoiceMaster = () => {
                       />
                       <label
                         htmlFor="product-image-upload"
-                        className="w-[60px] h-[60px] border border-slate-300 rounded-sm flex items-center justify-center cursor-pointer hover:border-blue-400 bg-white shadow-sm overflow-hidden"
+                        className="w-[45px] h-[45px] border border-slate-300 rounded-sm flex items-center justify-center cursor-pointer hover:border-blue-400 bg-white shadow-sm overflow-hidden"
                       >
                         {productImage ? (
                           <img src={productImage} alt="Preview" className="w-full h-full object-cover" />
                         ) : (
-                          <LayersIcon size={24} className="text-blue-500" />
+                          <LayersIcon size={20} className="text-blue-500" />
                         )}
                       </label>
                       {productImage && (
@@ -449,21 +498,19 @@ const ProductChoiceMaster = () => {
                         </button>
                       )}
                     </div>
-                    <span className="text-[7px] font-bold text-red-600 mt-1 uppercase leading-tight text-center">
-                      Upload Upto 200 KB Only!
-                    </span>
                   </div>
-                  <div className="col-span-4 flex justify-end gap-2">
-                    <button onClick={handleSave} className="bg-[#90e1a4] hover:bg-[#78cc8d] text-emerald-900 h-8 px-4 rounded-md flex items-center gap-1.5 font-bold text-[10px] transition-all active:scale-95 shadow-sm">
-                      <Save size={14} /> {editingId ? 'Update' : 'Save'}
-                    </button>
-                    <button onClick={handleClear} className="bg-[#fd7c7c] hover:bg-[#f35959] text-white h-8 px-4 rounded-md flex items-center gap-1.5 font-bold text-[10px] transition-all active:scale-95 shadow-sm">
-                      <Eraser size={14} /> Clear
-                    </button>
-                    <button onClick={handleRefresh} className="bg-[#e1e9f0] hover:bg-slate-200 text-slate-700 h-8 px-4 rounded-md flex items-center gap-1.5 font-bold text-[10px] transition-all active:scale-95 shadow-sm">
-                      <RefreshCw size={14} /> Refresh
-                    </button>
-                  </div>
+                </div>
+                
+                <div className="flex justify-end gap-2 mb-2 pb-2 border-b border-slate-100">
+                  <button onClick={handleSave} className="bg-[#90e1a4] hover:bg-[#78cc8d] text-emerald-900 h-8 px-4 rounded-md flex items-center gap-1.5 font-bold text-[10px] transition-all active:scale-95 shadow-sm">
+                    <Save size={14} /> {editingId ? 'Update' : 'Save'}
+                  </button>
+                  <button onClick={handleClear} className="bg-[#fd7c7c] hover:bg-[#f35959] text-white h-8 px-4 rounded-md flex items-center gap-1.5 font-bold text-[10px] transition-all active:scale-95 shadow-sm">
+                    <Eraser size={14} /> Clear
+                  </button>
+                  <button onClick={handleRefresh} className="bg-[#e1e9f0] hover:bg-slate-200 text-slate-700 h-8 px-4 rounded-md flex items-center gap-1.5 font-bold text-[10px] transition-all active:scale-95 shadow-sm">
+                    <RefreshCw size={14} /> Refresh
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-12 gap-4">
@@ -548,7 +595,6 @@ const ProductChoiceMaster = () => {
                                     <th className="px-3 py-2 text-center font-bold text-slate-700 text-[9px] uppercase tracking-tight">Def</th>
                                     <th className="px-3 py-2 text-center font-bold text-slate-700 text-[9px] uppercase tracking-tight">Min</th>
                                     <th className="px-3 py-2 text-center font-bold text-slate-700 text-[9px] uppercase tracking-tight">Max</th>
-                                    <th className="px-3 py-2 text-center font-bold text-slate-700 text-[9px] uppercase tracking-tight">Tax</th>
                                     <th className="px-3 py-2 text-center font-bold text-slate-700 text-[9px] uppercase tracking-tight w-10"></th>
                                   </tr>
                                 </thead>
@@ -563,11 +609,6 @@ const ProductChoiceMaster = () => {
                                       <td className="px-3 py-2 text-center font-black text-slate-600">{item.qty}</td>
                                       <td className="px-3 py-2 text-center font-bold text-slate-400">{item.minQty}</td>
                                       <td className="px-3 py-2 text-center font-bold text-slate-400">{item.maxQty}</td>
-                                      <td className="px-3 py-2 text-center">
-                                        <span className={`text-[8px] font-black px-1 rounded ${item.taxIncluded ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
-                                          {item.taxIncluded ? 'INC' : 'EXL'}
-                                        </span>
-                                      </td>
                                       <td className="px-3 py-2 text-end opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                                         <div className="flex items-center justify-end gap-1">
                                           <button
@@ -922,27 +963,6 @@ const ProductChoiceMaster = () => {
                   </div>
                 </div>
 
-                {/* Row 3: Tax Selection */}
-                <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tax Included</label>
-                  <button
-                    onClick={() => setVariantTaxIncluded(!variantTaxIncluded)}
-                    className={`w-24 h-8 border border-slate-300 flex items-center relative overflow-hidden transition-all duration-300 ${variantTaxIncluded ? 'bg-[#e6f3ff]' : 'bg-white'}`}
-                  >
-                    {variantTaxIncluded ? (
-                      <>
-                        <span className="flex-1 text-center text-[10px] font-black uppercase text-slate-700">Yes</span>
-                        <div className="w-2.5 h-full bg-[#0078d4]" />
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-2.5 h-full bg-slate-600" />
-                        <span className="flex-1 text-center text-[10px] font-black uppercase text-slate-700">No</span>
-                      </>
-                    )}
-                  </button>
-                  <p className="text-[9px] text-slate-400 font-bold leading-tight uppercase">Whether price includes GST by default</p>
-                </div>
               </div>
 
               <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">

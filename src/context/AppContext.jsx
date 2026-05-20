@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initialConfig, defaultConfig, waitersDb, itemsDb, customersDb, tablesDb, deliveryAgentsDb, usersDb } from '../data/mockDb';
-import { getOrderByTable, getOrderItems, getAllFromStore, ORDERS_STORE, getCustomerById } from '../data/idb';
+import { getOrderByTable, getOrderItems, getAllFromStore, ORDERS_STORE, getCustomerById, getAllProducts, getOrderItemAddons, getAllAddons } from '../data/idb';
 
 const AppContext = createContext();
 
@@ -70,8 +70,36 @@ export const AppProvider = ({ children }) => {
       const dbItems = await getOrderItems(activeOrder.id);
       const activeItems = dbItems.filter(oi => oi.status !== 'cancelled');
 
-      const mappedCart = activeItems.map(oi => {
-        const itemDetail = itemsDb.find(i => i.id === oi.itemId) || { name: 'Unknown Item' };
+      const allProducts = await getAllProducts();
+      const allDbAddons = await getAllAddons();
+
+      const mappedCart = await Promise.all(activeItems.map(async oi => {
+        let itemDetail = itemsDb.find(i => i.id === oi.itemId);
+        let isConfigProduct = false;
+
+        if (!itemDetail) {
+          itemDetail = allProducts.find(p => p.id === oi.itemId);
+          if (itemDetail) {
+            itemDetail.name = itemDetail.displayName || itemDetail.name;
+            isConfigProduct = true;
+          }
+        }
+
+        if (!itemDetail) {
+          itemDetail = { name: 'Unknown Item' };
+        }
+
+        const rawAddons = await getOrderItemAddons(oi.id);
+        const mappedAddons = rawAddons.map(ra => {
+            const addonDef = allDbAddons.find(a => a.id === ra.addonId) || { displayName: 'Unknown Addon' };
+            return {
+                id: ra.addonId,
+                displayName: addonDef.displayName,
+                price: ra.price,
+                qty: ra.qty
+            };
+        });
+
         return {
           id: oi.itemId,
           cartId: oi.id,
@@ -79,6 +107,8 @@ export const AppProvider = ({ children }) => {
           price: oi.price,
           qty: oi.qty,
           modifiers: oi.cookingInstructions || [],
+          notes: oi.cookingInstructions || [],
+          addons: mappedAddons.length > 0 ? mappedAddons : undefined,
           isChoice: oi.isChoice,
           variantId: oi.variantId,
           isCombo: oi.isCombo,
@@ -87,9 +117,12 @@ export const AppProvider = ({ children }) => {
           isParcel: oi.isParcel,
           createdAt: oi.addedTime,
           kotNo: oi.kotNo,
-          sessionTime: oi.addedTime ? new Date(oi.addedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+          sessionTime: oi.addedTime ? new Date(oi.addedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+          type: oi.type || (isConfigProduct ? 'PRODUCT_CONFIG' : undefined),
+          groupSelections: oi.groupSelections || undefined,
+          selectedAddons: oi.selectedAddons || undefined,
         };
-      });
+      }));
       setCart(mappedCart);
 
       if (activeOrder.customerId) {

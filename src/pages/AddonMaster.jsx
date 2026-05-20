@@ -24,7 +24,6 @@ const AddonMaster = () => {
   const [displayName, setDisplayName] = useState('');
   const [price, setPrice] = useState('0.00');
   const [status, setStatus] = useState(true); // true for Active
-  const [isTaxIncluded, setIsTaxIncluded] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [itemSearchTerm, setItemSearchTerm] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -82,7 +81,6 @@ const AddonMaster = () => {
       itemName: selectedItem.name,
       displayName: displayName,
       price: parseFloat(price),
-      isTaxIncluded: isTaxIncluded,
       status: status ? 'Active' : 'Inactive',
       branch: selectedBranch,
       updatedAt: new Date().toISOString()
@@ -110,7 +108,6 @@ const AddonMaster = () => {
     setSelectedItem(null);
     setItemSearchTerm('');
     setStatus(true);
-    setIsTaxIncluded(false);
     setEditingId(null);
     notify('Form cleared', 'info');
   };
@@ -142,7 +139,6 @@ const AddonMaster = () => {
     setEditingId(addon.id);
     setDisplayName(addon.displayName);
     setPrice(addon.price.toString());
-    setIsTaxIncluded(addon.isTaxIncluded);
     setStatus(addon.status === 'Active');
     setSelectedItem({ id: addon.itemId, name: addon.itemName });
     setItemSearchTerm(`${addon.itemId} - ${addon.itemName}`);
@@ -236,7 +232,7 @@ const AddonMaster = () => {
               </div>
 
               {/* Rate */}
-              <div className="col-span-2 space-y-0.5">
+              <div className="col-span-3 space-y-0.5">
                 <label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Rate *</label>
                 <input
                   type="text"
@@ -244,29 +240,6 @@ const AddonMaster = () => {
                   onChange={(e) => setPrice(e.target.value)}
                   className="w-full h-8 border border-slate-300 rounded-sm px-2 text-[11px] outline-none focus:border-blue-400 font-bold text-slate-700"
                 />
-              </div>
-
-              {/* Tax Included */}
-              <div className="col-span-1 space-y-0.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Tax Inc.</label>
-                <div className="flex items-center h-8">
-                  <button
-                    onClick={() => setIsTaxIncluded(!isTaxIncluded)}
-                    className={`w-full h-7 border border-slate-300 flex items-center relative overflow-hidden transition-all duration-300 focus:outline-none ${isTaxIncluded ? 'bg-[#e6f3ff]' : 'bg-white'}`}
-                  >
-                    {isTaxIncluded ? (
-                      <>
-                        <span className="flex-1 text-center text-[9px] font-black uppercase text-slate-700">Yes</span>
-                        <div className="w-1.5 h-full bg-[#0078d4]" />
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-1.5 h-full bg-slate-600" />
-                        <span className="flex-1 text-center text-[9px] font-black uppercase text-slate-700">No</span>
-                      </>
-                    )}
-                  </button>
-                </div>
               </div>
 
               {/* Status */}

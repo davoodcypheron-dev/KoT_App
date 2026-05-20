@@ -9,6 +9,7 @@ import {
 
 import * as MetaData from './meta_data';
 import * as MockDbSetters from './mockDb';
+import { seedAddonsAndCombos } from './seedAddonsAndCombos';
 
 const DEFAULT_STORES_TO_SEED = [
     { storeName: CUSTOMERS_STORE, dataSet: MetaData.customersDb },
@@ -69,6 +70,9 @@ export const initAppDb = async (forceReset = false) => {
 
     // Now Load Everything from IDB into Memory (mockDb.js variables)
     await loadDbIntoMemoryCache();
+
+    // Run custom seeders for addons and combos
+    await seedAddonsAndCombos();
 };
 
 export const loadDbIntoMemoryCache = async () => {
