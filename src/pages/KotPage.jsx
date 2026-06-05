@@ -416,7 +416,7 @@ const KotPage = () => {
       setRateInput('');
    };
 
-   const handleProductConfirm = ({ groupSelections, selectedAddons, price }) => {
+   const handleProductConfirm = ({ groupSelections, selectedAddons, price, qty }) => {
       if (showProductModal.cartItem) {
          // Updating existing item
          setCart(prev => prev.map(item => {
@@ -425,7 +425,8 @@ const KotPage = () => {
                   ...item,
                   price: price, // This is the base price + group items + addons
                   selectedAddons: selectedAddons,
-                  groupSelections: groupSelections
+                  groupSelections: groupSelections,
+                  qty: qty ?? item.qty
                };
             }
             return item;
@@ -438,7 +439,7 @@ const KotPage = () => {
             cartId,
             name: showProductModal.product.displayName || showProductModal.product.name,
             price: price,
-            qty: 1,
+            qty: qty ?? 1,
             isParcel: false,
             notes: [],
             selectedAddons: selectedAddons,
@@ -2467,6 +2468,7 @@ const ItemTile = ({ item, onAdd, isLocked, config }) => {
 }; const ProductSelectionModal = ({ product, cartItem, onClose, onConfirm, config, dbAddons }) => {
    const [groupSelections, setGroupSelections] = useState({});
    const [selectedAddons, setSelectedAddons] = useState(cartItem?.selectedAddons || []);
+   const [qty, setQty] = useState(cartItem?.qty || 1);
 
    // Initialize selections
    useEffect(() => {
@@ -2478,7 +2480,9 @@ const ItemTile = ({ item, onAdd, isLocked, config }) => {
             if (group.type === 'FIXED') {
                initial[group.id] = group.items.map(i => ({ ...i, qty: i.qty || 1 }));
             } else {
-               initial[group.id] = [];
+               initial[group.id] = (group.items || [])
+                  .filter(i => i.isDefault)
+                  .map(i => ({ ...i, qty: i.qty || 1 }));
             }
          });
          setGroupSelections(initial);
@@ -2486,6 +2490,7 @@ const ItemTile = ({ item, onAdd, isLocked, config }) => {
       if (cartItem?.selectedAddons) {
          setSelectedAddons(cartItem.selectedAddons);
       }
+      setQty(cartItem?.qty || 1);
    }, [product, cartItem]);
 
    const handleToggleItem = (group, item) => {
@@ -2766,14 +2771,34 @@ const ItemTile = ({ item, onAdd, isLocked, config }) => {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center gap-8">
+            <div className="py-4 px-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-8">
                <div className="flex-1">
-                  <span className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Total Meal Price</span>
+                  <span className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Total Meal Price</span>
                   <div className="flex items-baseline gap-2">
-                     <span className="text-4xl font-black text-slate-800 tracking-tighter">{config.currencySymbol} {calculateFullPrice().toFixed(2)}</span>
+                     <span className="text-3xl font-black text-slate-800 tracking-tighter">{config.currencySymbol} {calculateFullPrice().toFixed(2)}</span>
                   </div>
                </div>
-               <div className="flex items-center gap-3">
+
+               {/* Qty Control (Footer Center) */}
+               <div className="flex items-center justify-center">
+                  <div className="flex items-center bg-white border border-slate-200 rounded-xl p-0.5 shadow-sm">
+                     <button
+                        onClick={() => setQty(prev => Math.max(1, prev - 1))}
+                        className="w-12 h-10 rounded-lg bg-slate-50 flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90"
+                     >
+                        <Minus size={16} />
+                     </button>
+                     <span className="w-12 text-center text-[15px] font-black text-blue-800">{qty}</span>
+                     <button
+                        onClick={() => setQty(prev => prev + 1)}
+                        className="w-12 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95"
+                     >
+                        <Plus size={16} />
+                     </button>
+                  </div>
+               </div>
+
+               <div className="flex-1 flex flex-col items-end gap-1 justify-center">
                   {!isSelectionValid() && (
                      <div className="flex items-center gap-2 text-rose-500 animate-pulse">
                         <AlertCircle size={14} />
@@ -2784,10 +2809,11 @@ const ItemTile = ({ item, onAdd, isLocked, config }) => {
                      onClick={() => onConfirm({
                         groupSelections,
                         selectedAddons,
-                        price: calculateFullPrice()
+                        price: calculateFullPrice(),
+                        qty
                      })}
                      disabled={!isSelectionValid()}
-                     className={`px-12 py-5 font-black rounded-[2.5rem] shadow-xl active:scale-95 transition-all uppercase text-[12px] tracking-[0.2em] flex items-center gap-3 ${!isSelectionValid() ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200'}`}
+                     className={`px-10 py-3.5 font-black rounded-[2rem] shadow-xl active:scale-95 transition-all uppercase text-[12px] tracking-[0.2em] flex items-center gap-3 ${!isSelectionValid() ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200'}`}
                   >
                      {cartItem ? 'Update Order' : 'Add to Order'}
                      <div className="w-7 h-7 bg-white/20 rounded-xl flex items-center justify-center">

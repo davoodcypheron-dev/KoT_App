@@ -62,6 +62,7 @@ const ProductChoiceMaster = () => {
   const [itemQty, setItemQty] = useState('1');
   const [itemMinQty, setItemMinQty] = useState('1');
   const [itemMaxQty, setItemMaxQty] = useState('1');
+  const [isDefault, setIsDefault] = useState(false);
 
   // Right Pane Addons States
   const [availableAddons, setAvailableAddons] = useState([]);
@@ -191,6 +192,7 @@ const ProductChoiceMaster = () => {
       setItemQty(item.qty.toString());
       setItemMinQty(item.minQty.toString());
       setItemMaxQty(item.maxQty.toString());
+      setIsDefault(!!item.isDefault);
     } else {
       setEditingItemId(null);
       setSelectedBaseItem(null);
@@ -200,6 +202,7 @@ const ProductChoiceMaster = () => {
       setItemQty('1');
       setItemMinQty('1');
       setItemMaxQty('1');
+      setIsDefault(false);
     }
     setShowItemModal(true);
   };
@@ -218,7 +221,8 @@ const ProductChoiceMaster = () => {
       price: price,
       qty: qty,
       minQty: parseInt(itemMinQty) || 1,
-      maxQty: parseInt(itemMaxQty) || 1
+      maxQty: parseInt(itemMaxQty) || 1,
+      isDefault: isDefault
     };
 
     setOptionGroups(optionGroups.map(g => {
@@ -313,6 +317,7 @@ const ProductChoiceMaster = () => {
     setItemQty('1');
     setItemMinQty('1');
     setItemMaxQty('1');
+    setIsDefault(false);
     notify('Form cleared', 'info');
   };
 
@@ -602,7 +607,12 @@ const ProductChoiceMaster = () => {
                                   {group.items.map((item, iIdx) => (
                                     <tr key={item.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors group">
                                       <td className="px-3 py-2">
-                                        <div className="font-black text-slate-700 leading-tight">{item.displayName}</div>
+                                        <div className="flex items-center gap-1.5">
+                                          <div className="font-black text-slate-700 leading-tight">{item.displayName}</div>
+                                          {item.isDefault && (
+                                            <span className="text-[7px] font-black bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded uppercase">Default</span>
+                                          )}
+                                        </div>
                                         <div className="text-[8px] text-slate-400 font-bold tracking-tight uppercase leading-none mt-0.5">{item.itemName}</div>
                                       </td>
                                       <td className="px-3 py-2 text-end font-black text-blue-600">₹{item.price.toFixed(2)}</td>
@@ -961,6 +971,20 @@ const ProductChoiceMaster = () => {
                       className="w-full h-10 border border-slate-200 rounded-lg px-4 text-xs text-center font-black text-slate-700 outline-none focus:border-blue-400 bg-slate-50"
                     />
                   </div>
+                </div>
+
+                {/* Row 3: Is Default Selection checkbox */}
+                <div className="flex items-center gap-2.5 p-3.5 bg-slate-50 rounded-xl border border-slate-100 mt-2">
+                  <input
+                    type="checkbox"
+                    id="is-default-checkbox"
+                    checked={isDefault}
+                    onChange={(e) => setIsDefault(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                  />
+                  <label htmlFor="is-default-checkbox" className="text-[11px] font-bold text-slate-700 uppercase tracking-tight cursor-pointer select-none">
+                    Set as Default Selection (Auto-selected in KOT Page)
+                  </label>
                 </div>
 
               </div>
