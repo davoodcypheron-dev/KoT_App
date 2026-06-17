@@ -71,6 +71,10 @@ const KotPage = () => {
    const [rateInput, setRateInput] = useState('');
    const [showOrderChoice, setShowOrderChoice] = useState(false);
    const [pendingChoiceAction, setPendingChoiceAction] = useState(null);
+   const [selectedSearchItem, setSelectedSearchItem] = useState(null);
+   const [searchQty, setSearchQty] = useState('');
+   const qtyInputRef = React.useRef(null);
+   const searchInputRef = React.useRef(null);
 
 
    // Offer Validation Helper
@@ -307,7 +311,7 @@ const KotPage = () => {
    }, [searchTerm, activeGroup, filteredItems, virtualDisplayItems, dbProducts, config.openSearch, soldOutTracking]);
 
    const suggestedItems = useMemo(() => {
-      if (!config.openSearch || searchTerm.trim() === '') return [];
+      if (!config.openSearch || searchTerm.trim() === '' || selectedSearchItem) return [];
       const raw = [
          ...itemsDb.filter(i =>
             i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -340,8 +344,11 @@ const KotPage = () => {
       g.name.toLowerCase().includes(groupSearch.toLowerCase())
    );
 
-   const addToCart = (item) => {
+   const addToCart = (item, qtyToAdd = 1) => {
       if (isBilled) return;
+
+      const qty = parseInt(qtyToAdd) || 1;
+      if (qty <= 0) return;
 
       const tracked = soldOutTracking.find(t => t.id === item.id);
       if (tracked && tracked.isSoldOut) {
@@ -350,32 +357,32 @@ const KotPage = () => {
 
       const cartCount = cart.filter(c => c.id === item.id).reduce((sum, c) => sum + c.qty, 0);
       if (tracked && !tracked.isSoldOut && tracked.qty > 0) {
-         if (cartCount + 1 > tracked.qty) {
+         if (cartCount + qty > tracked.qty) {
             return notify(`Only ${tracked.qty} remaining for ${item.displayName || item.name}!`, 'error');
-         }
+          }
       }
 
       // If it's a configurable product, open the specialized modal
       if (item.type === 'CHOICE_ITEM' || item.type === 'COMBO_ITEM' || (item.optionGroups && item.optionGroups.length > 0)) {
-         setShowProductModal({ product: item });
+         setShowProductModal({ product: item, initialQty: qty });
          return;
       }
 
       if (item.openItem) {
-         setShowOpenItemRate(item);
+         setShowOpenItemRate({ ...item, initialQty: qty });
          setRateInput(item.price?.toString() || '');
          return;
       }
 
       const existing = cart.find(c => c.id === item.id && !c.isSaved && !c.isParcel && (!c.notes || c.notes.length === 0));
       if (existing) {
-         setCart(cart.map(c => c.cartId === existing.cartId ? { ...c, qty: c.qty + 1 } : c));
+         setCart(cart.map(c => c.cartId === existing.cartId ? { ...c, qty: c.qty + qty } : c));
       } else {
          const cartId = Math.random();
          setCart([...cart, {
             ...item,
             cartId,
-            qty: 1,
+            qty: qty,
             isSaved: false,
             isParcel: false,
             notes: [],
@@ -384,6 +391,44 @@ const KotPage = () => {
       }
       setOrderDiscount({ type: 'percentage', value: 0, amount: 0, percentage: 0 });
       setAppliedOffers([]);
+   };
+
+   const handleSelectSearchItem = (item) => {
+      setSelectedSearchItem(item);
+      setSearchTerm(item.displayName || item.name);
+      setSearchQty('1');
+      setTimeout(() => {
+         if (qtyInputRef.current) {
+            qtyInputRef.current.focus();
+            qtyInputRef.current.select();
+         }
+      }, 50);
+   };
+
+   const handleQtyKeyDown = (e) => {
+      if (e.key === 'Enter') {
+         if (!selectedSearchItem) {
+            notify('Please select an item first', 'warning');
+            return;
+         }
+         const qty = parseInt(searchQty);
+         if (isNaN(qty) || qty <= 0) {
+            notify('Please enter a valid quantity', 'error');
+            return;
+         }
+
+         addToCart(selectedSearchItem, qty);
+
+         setSelectedSearchItem(null);
+         setSearchTerm('');
+         setSearchQty('');
+
+         setTimeout(() => {
+            if (searchInputRef.current) {
+               searchInputRef.current.focus();
+            }
+         }, 50);
+      }
    };
 
    const handleOpenItemConfirm = () => {
@@ -400,10 +445,11 @@ const KotPage = () => {
       } else {
          // Adding new item
          const cartId = Math.random();
+         const qty = showOpenItemRate.initialQty || 1;
          setCart([...cart, {
             ...itemWithRate,
             cartId,
-            qty: 1,
+            qty: qty,
             isSaved: false,
             isParcel: false,
             notes: [],
@@ -1341,13 +1387,17 @@ const KotPage = () => {
                <>
                   {/* PART 2: ITEMS GRID (Original) */}
                   <div className="flex-1 flex flex-col overflow-hidden bg-[#f8fafc] border border-slate-200 rounded-2xl">
-                     <div className="p-3 border-b border-slate-200 bg-white flex items-center justify-center">
-                        <div className="w-full max-w-[100%] relative">
+                     <div className="p-3 border-b border-slate-200 bg-white flex items-center justify-between gap-2 shrink-0">
+                        <div className="flex-1 relative">
                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
                            <input
+                              ref={searchInputRef}
                               type="text"
                               value={searchTerm}
-                              onChange={(e) => setSearchTerm(e.target.value)}
+                              onChange={(e) => {
+                                 setSearchTerm(e.target.value);
+                                 setSelectedSearchItem(null);
+                              }}
                               placeholder="Search Item..."
                               className="w-full bg-[#f8fafc] border border-slate-100 rounded-xl h-11 pl-12 pr-6 font-bold text-slate-500 outline-none focus:bg-white focus:border-blue-300 transition-all text-sm shadow-inner"
                            />
@@ -1373,8 +1423,7 @@ const KotPage = () => {
                                           <button
                                              key={item.id}
                                              onClick={() => {
-                                                addToCart(item);
-                                                setSearchTerm('');
+                                                handleSelectSearchItem(item);
                                              }}
                                              className="w-full p-3 flex items-center gap-3 hover:bg-slate-50 rounded-xl transition-all group border border-transparent hover:border-slate-100"
                                           >
@@ -1407,12 +1456,21 @@ const KotPage = () => {
                               </div>
                            )}
                         </div>
+                        <input
+                           ref={qtyInputRef}
+                           type="text"
+                           value={searchQty}
+                           onChange={(e) => setSearchQty(e.target.value)}
+                           onKeyDown={handleQtyKeyDown}
+                           placeholder="Qty"
+                           className="w-16 bg-[#f8fafc] border border-slate-100 rounded-xl h-11 text-center font-black text-slate-700 outline-none focus:bg-white focus:border-blue-300 transition-all text-sm shadow-inner"
+                        />
                      </div>
 
                      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                         <div className="grid grid-cols-4 gap-2">
                            {allDisplayItems.map(item => (
-                              <ItemTile key={item.id} item={item} onAdd={() => addToCart(item)} isLocked={isBilled} config={config} />
+                              <ItemTile key={item.id} item={item} onAdd={() => handleSelectSearchItem(item)} isLocked={isBilled} config={config} />
                            ))}
                         </div>
                      </div>
@@ -2083,6 +2141,7 @@ const KotPage = () => {
                   key="product-selection-modal"
                   product={showProductModal.product}
                   cartItem={showProductModal.cartItem}
+                  initialQty={showProductModal.initialQty}
                   onClose={() => setShowProductModal(null)}
                   onConfirm={handleProductConfirm}
                   config={config}
@@ -2465,10 +2524,10 @@ const ItemTile = ({ item, onAdd, isLocked, config }) => {
          </div>
       </button>
    );
-}; const ProductSelectionModal = ({ product, cartItem, onClose, onConfirm, config, dbAddons }) => {
+}; const ProductSelectionModal = ({ product, cartItem, onClose, onConfirm, config, dbAddons, initialQty }) => {
    const [groupSelections, setGroupSelections] = useState({});
    const [selectedAddons, setSelectedAddons] = useState(cartItem?.selectedAddons || []);
-   const [qty, setQty] = useState(cartItem?.qty || 1);
+   const [qty, setQty] = useState(cartItem?.qty || initialQty || 1);
 
    // Initialize selections
    useEffect(() => {
@@ -2490,8 +2549,8 @@ const ItemTile = ({ item, onAdd, isLocked, config }) => {
       if (cartItem?.selectedAddons) {
          setSelectedAddons(cartItem.selectedAddons);
       }
-      setQty(cartItem?.qty || 1);
-   }, [product, cartItem]);
+      setQty(cartItem?.qty || initialQty || 1);
+   }, [product, cartItem, initialQty]);
 
    const handleToggleItem = (group, item) => {
       if (group.type === 'FIXED') return;

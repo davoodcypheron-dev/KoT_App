@@ -110,6 +110,7 @@ const OrderHistoryPage = () => {
   const [showPrintConfirm, setShowPrintConfirm] = useState(false);
   const [printOrder, setPrintOrder] = useState(null);
   const [showDetails, setShowDetails] = useState(null);
+  const [isRightColExpanded, setIsRightColExpanded] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -152,12 +153,26 @@ const OrderHistoryPage = () => {
     });
   }, [orders, search, filter]);
 
-  const sections = [
-    { title: 'Running Orders', status: 'RUNNING', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
-    { title: 'Saved Orders', status: 'SAVED', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-    { title: 'Settled Orders', status: 'SETTLED', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
-    { title: 'Cancelled Orders', status: 'CANCELLED', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-200' }
-  ];
+  const runningOrders = useMemo(() => {
+    return filteredOrders.filter(o => {
+      const status = (o.status || 'RUNNING').toUpperCase();
+      return status === 'RUNNING' || status === 'MERGED' || status === 'ACTIVE';
+    });
+  }, [filteredOrders]);
+
+  const savedOrders = useMemo(() => {
+    return filteredOrders.filter(o => {
+      const status = (o.status || 'RUNNING').toUpperCase();
+      return status === 'SAVED' || status === 'BILLED';
+    });
+  }, [filteredOrders]);
+
+  const settledCancelledOrders = useMemo(() => {
+    return filteredOrders.filter(o => {
+      const status = (o.status || 'RUNNING').toUpperCase();
+      return status === 'SETTLED' || status === 'CANCELLED';
+    });
+  }, [filteredOrders]);
 
   const handleSelectOrder = (order) => {
     const table = tablesDb.find(t => t.id === order.tableId) || { id: null, type: order.type };
@@ -187,7 +202,7 @@ const OrderHistoryPage = () => {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         onClick={() => !isCancelled && setShowDetails(order)}
-        className={`relative group rounded-2xl border-2 p-1 flex flex-col items-center justify-center gap-1 transition-all shadow-sm aspect-square ${isCancelled ? 'cursor-default' : 'cursor-pointer'} ${isRunning ? 'bg-amber-50 border-amber-200 hover:border-amber-400' :
+        className={`w-[140px] aspect-square relative group rounded-2xl border-2 p-1 flex flex-col items-center justify-center gap-1 transition-all shadow-sm ${isCancelled ? 'cursor-default' : 'cursor-pointer'} ${isRunning ? 'bg-amber-50 border-amber-200 hover:border-amber-400' :
           isSaved ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400' :
             isSettled ? 'bg-blue-50 border-blue-200 hover:border-blue-400' :
               'bg-rose-50 border-rose-200 hover:border-rose-400'
@@ -242,7 +257,14 @@ const OrderHistoryPage = () => {
           {['ALL ORDERS', 'DINE IN', 'TAKE AWAY', 'DELIVERY', 'BILL GENERATED', 'CANCELLED'].map((t) => (
             <button
               key={t}
-              onClick={() => setFilter(t)}
+              onClick={() => {
+                setFilter(t);
+                if (t === 'CANCELLED') {
+                  setIsRightColExpanded(true);
+                } else {
+                  setIsRightColExpanded(false);
+                }
+              }}
               className={`px-4 h-9 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filter === t
                 ? 'bg-blue-600 text-white shadow-md'
                 : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
@@ -281,50 +303,135 @@ const OrderHistoryPage = () => {
         </div>
       </div>
 
-      <div className="flex-1 flex gap-3 p-3 overflow-x-auto custom-scrollbar h-full min-h-0 bg-[#fdf2f2]/50">
-        {sections.map(section => {
-          const sectionOrders = filteredOrders.filter(o => {
-            const status = (o.status || 'RUNNING').toUpperCase();
-            if (section.status === 'RUNNING') return status === 'RUNNING' || status === 'MERGED' || status === 'ACTIVE';
-            if (section.status === 'SAVED') return status === 'SAVED' || status === 'BILLED';
-            return status === section.status;
-          });
+      <div className="flex-1 flex gap-3 p-3 h-full min-h-0 bg-[#fdf2f2]/50 overflow-hidden">
+        {/* Running Orders Column */}
+        <div className="flex-1 min-w-[300px] flex flex-col h-full bg-white/40 backdrop-blur-md border border-slate-200/60 rounded-[2.5rem] shadow-sm overflow-hidden animate-in fade-in duration-300">
+          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white/50 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-1 rounded-full bg-amber-500" />
+              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-600">Running Orders</h2>
+            </div>
+            <div className="px-2.5 py-1 rounded-xl font-black text-[10px] border bg-amber-50 text-amber-600 border-amber-200 shadow-sm">
+              {runningOrders.length}
+            </div>
+          </div>
 
-          if (sectionOrders.length === 0 && search) return null;
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
+            {runningOrders.length > 0 ? (
+              <div className="grid grid-cols-[repeat(auto-fill,140px)] gap-2 pb-12">
+                {runningOrders.map(order => (
+                  <OrderTile key={order.id} order={order} />
+                ))}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center grayscale opacity-30 gap-4 py-20 px-4 text-center">
+                <div className="w-16 h-16 rounded-[2rem] flex items-center justify-center bg-amber-50 text-amber-600">
+                  <LayoutGrid size={32} />
+                </div>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">No running orders found</span>
+              </div>
+            )}
+          </div>
+        </div>
 
-          return (
-            <div key={section.status} className="flex-1 min-w-[320px] max-w-[450px] flex flex-col h-full bg-white/40 backdrop-blur-md border border-slate-200/60 rounded-[2.5rem] shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {/* Section Header */}
+        {/* Saved Orders Column */}
+        <div className="flex-1 min-w-[300px] flex flex-col h-full bg-white/40 backdrop-blur-md border border-slate-200/60 rounded-[2.5rem] shadow-sm overflow-hidden animate-in fade-in duration-300">
+          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white/50 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-1 rounded-full bg-emerald-500" />
+              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Saved Orders</h2>
+            </div>
+            <div className="px-2.5 py-1 rounded-xl font-black text-[10px] border bg-emerald-50 text-emerald-600 border-emerald-200 shadow-sm">
+              {savedOrders.length}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
+            {savedOrders.length > 0 ? (
+              <div className="grid grid-cols-[repeat(auto-fill,140px)] gap-2 pb-12">
+                {savedOrders.map(order => (
+                  <OrderTile key={order.id} order={order} />
+                ))}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center grayscale opacity-30 gap-4 py-20 px-4 text-center">
+                <div className="w-16 h-16 rounded-[2rem] flex items-center justify-center bg-emerald-50 text-emerald-600">
+                  <LayoutGrid size={32} />
+                </div>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">No saved orders found</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Collapsible Settled / Cancelled Orders Column */}
+        <div
+          className={`h-full flex transition-all duration-300 ease-in-out ${
+            isRightColExpanded
+              ? 'w-full max-w-[550px] min-w-[380px]'
+              : 'w-16 min-w-[4rem] max-w-[4rem]'
+          }`}
+        >
+          {!isRightColExpanded ? (
+            <button
+              onClick={() => setIsRightColExpanded(true)}
+              className="flex-1 flex flex-col items-center py-6 bg-white/45 hover:bg-white/60 border border-slate-200/60 rounded-[2.5rem] shadow-sm transition-all cursor-pointer select-none gap-4"
+            >
+              <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200">
+                <ChevronRight className="rotate-180" size={18} />
+              </div>
+              <div className="flex-1 flex items-center justify-center">
+                <span
+                  className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 whitespace-nowrap"
+                  style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+                >
+                  Settled / Cancelled Orders
+                </span>
+              </div>
+              <div className="px-2 py-1 bg-blue-50 border border-blue-200 rounded-xl font-black text-[10px] text-blue-600 shadow-sm">
+                {settledCancelledOrders.length}
+              </div>
+            </button>
+          ) : (
+            <div className="flex-1 flex flex-col h-full bg-white/40 backdrop-blur-md border border-slate-200/60 rounded-[2.5rem] shadow-sm overflow-hidden animate-in fade-in duration-300">
               <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white/50 shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className={`h-5 w-1 rounded-full ${section.color.replace('text-', 'bg-')}`} />
-                  <h2 className={`text-[10px] font-black uppercase tracking-[0.2em] ${section.color}`}>{section.title}</h2>
+                  <button
+                    onClick={() => setIsRightColExpanded(false)}
+                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                  <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                    Settled / Cancelled
+                  </h2>
                 </div>
-                <div className={`px-2.5 py-1 rounded-xl font-black text-[10px] border ${section.bg} ${section.color} ${section.border} shadow-sm`}>
-                  {sectionOrders.length}
+                <div className="px-2.5 py-1 rounded-xl font-black text-[10px] border bg-blue-50 text-blue-600 border-blue-200 shadow-sm">
+                  {settledCancelledOrders.length}
                 </div>
               </div>
 
-              {/* Tiles Container */}
               <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
-                {sectionOrders.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-2 pb-12">
-                    {sectionOrders.map(order => (
+                {settledCancelledOrders.length > 0 ? (
+                  <div className="grid grid-cols-[repeat(auto-fill,140px)] gap-2 pb-12">
+                    {settledCancelledOrders.map((order) => (
                       <OrderTile key={order.id} order={order} />
                     ))}
                   </div>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center grayscale opacity-30 gap-4 py-20 px-4 text-center">
-                    <div className={`w-16 h-16 rounded-[2rem] flex items-center justify-center ${section.bg} ${section.color}`}>
+                    <div className="w-16 h-16 rounded-[2rem] flex items-center justify-center bg-blue-50 text-blue-600">
                       <LayoutGrid size={32} />
                     </div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">No {section.title.toLowerCase()} found</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      No orders found
+                    </span>
                   </div>
                 )}
               </div>
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
 
       {/* Details Popup */}

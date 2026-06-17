@@ -7,6 +7,7 @@ import { ShoppingBag, ArrowLeft, Search, CheckCircle, XCircle, AlertCircle, Refr
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import QtyModal from '../components/modals/QtyModal';
+import ConfirmationModal from '../components/modals/ConfirmationModal';
 
 const SoldOutPage = () => {
   const { notify } = useApp();
@@ -35,6 +36,7 @@ const SoldOutPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showQtyModal, setShowQtyModal] = useState(null);
   const [tempQty, setTempQty] = useState('');
+  const [showConfirmReset, setShowConfirmReset] = useState(false);
 
   const allAvailableItems = useMemo(() => {
     const merged = [
@@ -87,9 +89,14 @@ const SoldOutPage = () => {
     setTempQty('');
   };
 
-  const resetAll = async () => {
+  const resetAll = () => {
+    setShowConfirmReset(true);
+  };
+
+  const handleConfirmReset = async () => {
     await updateTrackedInIDB([]);
     notify('All stock tracking cleared', 'success');
+    setShowConfirmReset(false);
   };
 
   const handleItemClick = (item) => {
@@ -218,6 +225,18 @@ const SoldOutPage = () => {
         onClose={() => setShowQtyModal(null)}
         onUpdate={handleUpdateClick}
       />
+
+      {showConfirmReset && (
+        <ConfirmationModal
+          isOpen={showConfirmReset}
+          title="Reset All Stock?"
+          message="Are you sure you want to reset all stock tracking? This will make all items available again."
+          confirmText="Reset All"
+          cancelText="Cancel"
+          onCancel={() => setShowConfirmReset(false)}
+          onConfirm={handleConfirmReset}
+        />
+      )}
 
     </div>
   );
