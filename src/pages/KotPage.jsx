@@ -1470,7 +1470,7 @@ const KotPage = () => {
                      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                         <div className="grid grid-cols-4 gap-2">
                            {allDisplayItems.map(item => (
-                              <ItemTile key={item.id} item={item} onAdd={() => handleSelectSearchItem(item)} isLocked={isBilled} config={config} />
+                              <ItemTile key={item.id} item={item} onAdd={() => addToCart(item, 1)} isLocked={isBilled} config={config} />
                            ))}
                         </div>
                      </div>
