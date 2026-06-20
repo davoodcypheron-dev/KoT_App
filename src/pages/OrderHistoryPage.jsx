@@ -259,7 +259,7 @@ const OrderHistoryPage = () => {
               key={t}
               onClick={() => {
                 setFilter(t);
-                if (t === 'CANCELLED') {
+                if (t === 'CANCELLED' || t === 'BILL GENERATED') {
                   setIsRightColExpanded(true);
                 } else {
                   setIsRightColExpanded(false);

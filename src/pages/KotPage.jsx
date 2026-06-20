@@ -73,8 +73,10 @@ const KotPage = () => {
    const [pendingChoiceAction, setPendingChoiceAction] = useState(null);
    const [selectedSearchItem, setSelectedSearchItem] = useState(null);
    const [searchQty, setSearchQty] = useState('');
+   const [suggestionHighlight, setSuggestionHighlight] = useState(-1);
    const qtyInputRef = React.useRef(null);
    const searchInputRef = React.useRef(null);
+   const suggestionListRef = React.useRef(null);
 
 
    // Offer Validation Helper
@@ -397,12 +399,46 @@ const KotPage = () => {
       setSelectedSearchItem(item);
       setSearchTerm(item.displayName || item.name);
       setSearchQty('1');
+      setSuggestionHighlight(-1);
       setTimeout(() => {
          if (qtyInputRef.current) {
             qtyInputRef.current.focus();
             qtyInputRef.current.select();
          }
       }, 50);
+   };
+
+   const handleSearchKeyDown = (e) => {
+      if (suggestedItems.length === 0) return;
+      if (e.key === 'ArrowDown') {
+         e.preventDefault();
+         setSuggestionHighlight(prev => {
+            const next = prev < suggestedItems.length - 1 ? prev + 1 : 0;
+            scrollSuggestionIntoView(next);
+            return next;
+         });
+      } else if (e.key === 'ArrowUp') {
+         e.preventDefault();
+         setSuggestionHighlight(prev => {
+            const next = prev > 0 ? prev - 1 : suggestedItems.length - 1;
+            scrollSuggestionIntoView(next);
+            return next;
+         });
+      } else if (e.key === 'Enter' && suggestionHighlight >= 0) {
+         e.preventDefault();
+         handleSelectSearchItem(suggestedItems[suggestionHighlight]);
+      } else if (e.key === 'Escape') {
+         setSearchTerm('');
+         setSearchQty('');
+         setSelectedSearchItem(null);
+         setSuggestionHighlight(-1);
+      }
+   };
+
+   const scrollSuggestionIntoView = (index) => {
+      if (!suggestionListRef.current) return;
+      const item = suggestionListRef.current.children[index];
+      if (item) item.scrollIntoView({ block: 'nearest' });
    };
 
    const handleQtyKeyDown = (e) => {
@@ -1397,10 +1433,26 @@ const KotPage = () => {
                               onChange={(e) => {
                                  setSearchTerm(e.target.value);
                                  setSelectedSearchItem(null);
+                                 setSuggestionHighlight(-1);
                               }}
+                              onKeyDown={handleSearchKeyDown}
                               placeholder="Search Item..."
-                              className="w-full bg-[#f8fafc] border border-slate-100 rounded-xl h-11 pl-12 pr-6 font-bold text-slate-500 outline-none focus:bg-white focus:border-blue-300 transition-all text-sm shadow-inner"
+                              className="w-full bg-[#f8fafc] border border-slate-100 rounded-xl h-11 pl-12 pr-10 font-bold text-slate-500 outline-none focus:bg-white focus:border-blue-300 transition-all text-sm shadow-inner"
                            />
+                           {(searchTerm || searchQty) && (
+                              <button
+                                 onClick={() => {
+                                    setSearchTerm('');
+                                    setSearchQty('');
+                                    setSelectedSearchItem(null);
+                                    if (searchInputRef.current) searchInputRef.current.focus();
+                                 }}
+                                 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-slate-200 hover:bg-rose-100 hover:text-rose-500 text-slate-400 transition-all active:scale-90"
+                                 title="Clear search"
+                              >
+                                 <X size={11} strokeWidth={3} />
+                              </button>
+                           )}
 
                            {/* Suggestion List */}
                            {suggestedItems.length > 0 && (
@@ -1409,8 +1461,8 @@ const KotPage = () => {
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Quick Results</span>
                                     <button onClick={() => setSearchTerm('')} className="p-1 hover:bg-slate-200 rounded-lg text-slate-400"><X size={14} /></button>
                                  </div>
-                                 <div className="max-h-[400px] overflow-y-auto p-1.5 space-y-1">
-                                    {suggestedItems.map(item => {
+                                 <div ref={suggestionListRef} className="max-h-[400px] overflow-y-auto p-1.5 space-y-1">
+                                    {suggestedItems.map((item, sIdx) => {
                                        const isVirtual = item.type === 'CHOICE_ITEM' || item.type === 'COMBO_ITEM';
                                        const displayLabel = isVirtual ? item.displayName : item.name;
                                        const displayPrice = isVirtual
@@ -1425,7 +1477,7 @@ const KotPage = () => {
                                              onClick={() => {
                                                 handleSelectSearchItem(item);
                                              }}
-                                             className="w-full p-3 flex items-center gap-3 hover:bg-slate-50 rounded-xl transition-all group border border-transparent hover:border-slate-100"
+                                             className={`w-full p-3 flex items-center gap-3 rounded-xl transition-all group border ${suggestionHighlight === sIdx ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-50 border-transparent hover:border-slate-100'}`}
                                           >
                                              <div className='text-left'>
                                                 {typeTag ? (
