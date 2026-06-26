@@ -1257,7 +1257,7 @@ const KotPage = () => {
                                     }
                                  }}
                                  disabled={isCartEmpty}
-                                 className="h-12 px-5 bg-amber-50 text-amber-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-100 transition-all border border-amber-100 active:scale-95 shadow-sm flex items-center justify-center gap-2 disabled:opacity-40"
+                                 className="h-12 px-5 bg-amber-50 text-amber-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-100 transition-all border border-amber-100 active:scale-95 shadow-sm flex items-center justify-center gap-2 disabled:opacity-40 hidden"
                               >
                                  <Percent size={16} />
                                  <span>Discount</span>

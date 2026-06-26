@@ -1,14 +1,15 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Banknote, User, Phone, MapPin, Tag, CreditCard, Smartphone, BookOpen, Layers, Gift, Truck, Save, Shield
+  Banknote, User, Phone, MapPin, Tag, CreditCard, Smartphone, BookOpen, Layers, Gift, Truck, Save, Shield, Percent
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { customersDb, paymentMethodsDb, deliveryAgentsDb, ledgersDb } from '../../data/mockDb';
+import { customersDb, paymentMethodsDb, deliveryAgentsDb, ledgersDb, initialConfig } from '../../data/mockDb';
 import CreditModal from './CreditModal';
 import MultiPaymentsModal from './MultiPaymentsModal';
 import DeliveryAgentModal from './DeliveryAgentModal';
+import DiscountModal from './DiscountModal';
+import AuthorizerModal from './AuthorizerModal';
 import { ordersDb } from '../../data/mockDb';
 import { saveToStore, ORDERS_STORE, getOrderById, getOrderByTable, saveCustomer, getCustomerById as getCustById } from '../../data/idb';
 
@@ -25,8 +26,16 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = useState([]);
   const [showMultiModal, setShowMultiModal] = useState(false);
-  const [multiPayments, setMultiPayments] = useState([]);
+  const [multiPayments, setMultiPayments] = useState([]); // RESTORED MISSING STATE
   const [showAgentModal, setShowAgentModal] = useState(false);
+  
+  // Discount & Auth States
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [discountData, setDiscountData] = useState({ amount: 0, percentage: 0 });
+  const [showDiscountAuth, setShowDiscountAuth] = useState(false);
+  const [pendingDiscount, setPendingDiscount] = useState(null);
+  const [isDiscountAuth, setIsDiscountAuth] = useState(false);
+  const [discountAuthUser, setDiscountAuthUser] = useState(null);
 
   const [activeOrder, setActiveOrder] = useState(null);
   const [effectiveOrderType, setEffectiveOrderType] = useState(orderType);
@@ -61,7 +70,6 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
             }
           }
         } else if (selectedCustomer) {
-          // Fallback to currently selected customer in context if no order link exists yet (e.g. fresh DE/TA)
           setCustName(selectedCustomer.name || '');
           setCustMobile(selectedCustomer.mobile || '');
           setCustAddress(selectedCustomer.address || '');
@@ -72,9 +80,10 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
     };
 
     if (isOpen) loadOrderData();
-  }, [isOpen, table, orderType]);
+  }, [isOpen, table, orderType, selectedCustomer, setSelectedCustomer]);
 
   const isDelivery = effectiveOrderType === 'DE' || effectiveOrderType === 'HD';
+  const isBilled = activeOrder?.status?.toLowerCase() === 'billed' || activeOrder?.status?.toLowerCase() === 'saved';
 
   useEffect(() => {
     const term = custName || custMobile;
@@ -129,8 +138,17 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
       default: return null;
     }
   };
+
+  // --- Dynamic Financial Calculations ---
+  const baseTotal = parseFloat(total) || 0;
+  const discountVal = parseFloat(discountData.amount) || 0;
+  const afterDiscount = Math.max(0, baseTotal - discountVal);
+  const netPayable = Math.round(afterDiscount);
+  const roundOff = netPayable - afterDiscount;
+  const balCashValue = (parseFloat(customerCash) || 0) - netPayable;
+  const sym = config?.currencySymbol || '₹';
+
   const handleProcess = async (methodName) => {
-    // Sync customer record first
     await handleSyncCustomer();
 
     if (isDelivery) {
@@ -140,10 +158,20 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
       }
     }
 
+    const payload = {
+      method: methodName,
+      isMulti: false,
+      baseTotal,
+      discount: discountVal,
+      discountAuthUser, // Tracking who authorized the discount
+      roundOff,
+      netPayable
+    };
+
     if (type === 'save') {
-      onProcess(`Bill Generated : ${methodName}`, { method: methodName, isMulti: false });
+      onProcess(`Bill Generated : ${methodName}`, payload);
     } else {
-      onProcess(`Settled to ${methodName}`, { method: methodName, isMulti: false });
+      onProcess(`Settled to ${methodName}`, payload);
     }
   };
 
@@ -151,9 +179,6 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
     ...m,
     icon: getMethodIcon(m.id)
   })).sort((a, b) => (a.priority || 99) - (b.priority || 99));
-
-
-  const balCashValue = (parseFloat(customerCash) || 0) - total;
 
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
@@ -173,9 +198,26 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Transaction View</p>
             </div>
           </div>
+          
           <div className="flex flex-col items-end">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Payable Amount</span>
-            <span className="text-3xl font-black text-blue-600 font-mono tracking-tighter">{config.currencySymbol}{total}</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Net Payable Amount</span>
+            
+            {discountVal > 0 && (
+              <span className="text-xs font-bold text-slate-500">
+                <span className="text-rose-500 mr-1">(-{sym}{discountVal.toFixed(2)})</span>
+                {sym}{afterDiscount.toFixed(2)}
+              </span>
+            )}
+            
+            {roundOff !== 0 && (
+              <span className="text-xs font-bold text-slate-400">
+                Round Off: {roundOff > 0 ? '+' : ''}{roundOff.toFixed(2)}
+              </span>
+            )}
+            
+            <span className="text-3xl font-black text-blue-600 font-mono tracking-tighter mt-0.5">
+              {sym}{netPayable.toFixed(2)}
+            </span>
           </div>
         </div>
 
@@ -267,8 +309,6 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
                 </div>
               </div>
 
-
-
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block ml-1">Invoice Description</label>
                 <textarea
@@ -279,33 +319,55 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
                 />
               </div>
 
-
             </div>
 
             {/* RIGHT COLUMN: PAYMENT INFO */}
             <div className="space-y-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="h-4 w-1 bg-emerald-500 rounded-full" />
-                <span className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Payment Settlement</span>
+              
+              {/* Payment Section Header with Discount Button */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-4 w-1 bg-emerald-500 rounded-full" />
+                  <span className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Payment Settlement</span>
+                </div>
+                <button
+                  onClick={() => {
+                    const requireAuth = isBilled || config?.authDiscountOnly || config?.authDisocuntOnly || initialConfig?.authDiscountOnly || initialConfig?.authDisocuntOnly;
+                    
+                    if (requireAuth && !isDiscountAuth) {
+                      setShowDiscountAuth(true);
+                    } else {
+                      setShowDiscountModal(true);
+                    }
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${type !== 'save' ? 'hidden' : ''} ${
+                    discountVal > 0 
+                      ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' 
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <Percent size={12} />
+                  {discountVal > 0 ? 'Edit Discount' : 'Add Discount'}
+                </button>
               </div>
 
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block ml-1">Customer Cash</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block ml-1">Customer Cash</label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-black">₹</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 font-black">₹</span>
                     <input
                       type="number"
                       value={customerCash}
                       onChange={(e) => setCustomerCash(e.target.value)}
                       placeholder="0.00"
-                      className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl h-14 pl-10 pr-4 text-xl font-black text-emerald-600 outline-none focus:bg-white focus:border-emerald-300 transition-all shadow-inner"
+                      className="w-full bg-emerald-50 border border-emerald-100 rounded-xl h-10 pl-8 pr-3 text-base font-black text-emerald-600 outline-none focus:bg-white focus:border-emerald-300 transition-all shadow-inner"
                     />
                   </div>
                 </div>
-                <div className="flex flex-col justify-end pb-1">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Balance Cash</span>
-                  <div className={`text-2xl font-black font-mono tracking-tighter ${balCashValue >= 0 ? 'text-blue-600' : 'text-slate-300'}`}>
+                <div className="flex flex-col justify-end pb-0.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5 block ml-1">Balance Cash</label>
+                  <div className={`text-xl font-black font-mono tracking-tighter leading-none ${balCashValue >= 0 ? 'text-blue-600' : 'text-slate-300'}`}>
                     ₹{balCashValue.toFixed(2)}
                   </div>
                 </div>
@@ -325,7 +387,7 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
                 </div>
               </div>
 
-              {config.settleByLedger ? (
+              {config?.settleByLedger ? (
                 <div className="space-y-4 pt-2">
                   <div className="flex items-center gap-3 mb-2">
                     <Shield className="text-blue-500" size={16} />
@@ -452,15 +514,60 @@ const SettlementModal = ({ type, table, total, onClose, onProcess, orderType, is
         onProcess={onProcess}
       />
 
+      <DiscountModal
+        isOpen={showDiscountModal}
+        onClose={() => setShowDiscountModal(false)}
+        onApply={(discount) => {
+          if (discount.percentage > (config?.cashierDiscountLimit || 0) && !isDiscountAuth) {
+            setPendingDiscount(discount);
+            setShowDiscountAuth(true);
+          } else {
+            setDiscountData(discount);
+            notify('Discount applied', 'success');
+          }
+        }}
+        orderValue={baseTotal}
+        config={config}
+        notify={notify}
+        preAuthorized={isDiscountAuth}
+      />
+
+      {showDiscountAuth && (
+        <AuthorizerModal
+          isOpen={showDiscountAuth}
+          onClose={() => {
+            setShowDiscountAuth(false);
+            setPendingDiscount(null);
+          }}
+          onAuthorize={(user) => {
+            setIsDiscountAuth(true);
+            setDiscountAuthUser(user.id);
+            if (pendingDiscount) {
+              setDiscountData(pendingDiscount);
+              notify(`Discount authorized by ${user.name}`, 'success');
+              setPendingDiscount(null);
+              setShowDiscountAuth(false);
+            } else {
+              setShowDiscountAuth(false);
+              setShowDiscountModal(true);
+            }
+          }}
+          permissionKey="discountDisc"
+          title="Management Override"
+          message={`Authorization required to apply or modify discounts.`}
+        />
+      )}
+
       <MultiPaymentsModal
         isOpen={showMultiModal}
-        total={total}
+        total={netPayable} 
         multiPayments={multiPayments}
         setMultiPayments={setMultiPayments}
         onClose={() => setShowMultiModal(false)}
         onProcess={onProcess}
         notify={notify}
       />
+      
       <DeliveryAgentModal
         isOpen={showAgentModal}
         selectedAgent={deliveryAgent}

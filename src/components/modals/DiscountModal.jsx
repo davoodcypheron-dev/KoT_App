@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Percent, Banknote, X, Check, Lock, ShieldCheck, Trash2, Delete, ChevronRight } from 'lucide-react';
@@ -229,11 +228,12 @@ const DiscountModal = ({ isOpen, onClose, onApply, orderValue, config, notify, p
               >
                 0
               </button>
+              {/* Replaced BACK button with Decimal (.) button */}
               <button
-                onClick={() => handleKeyPress('BACK')}
-                className="h-12 bg-slate-100 border-2 border-slate-200 rounded-xl font-black text-[10px] text-slate-600 uppercase tracking-widest active:bg-slate-200"
+                onClick={() => handleKeyPress('.')}
+                className="h-12 bg-white border-2 border-slate-100 rounded-xl font-black text-lg text-slate-700 active:bg-blue-50 shadow-sm"
               >
-                Back
+                .
               </button>
             </div>
           </div>
