@@ -255,6 +255,25 @@ export const generateKotNo = async (orderType) => {
     });
 };
 
+export const previewNextKotNo = async (orderType) => {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction([APP_META_STORE], 'readonly');
+        const store = tx.objectStore(APP_META_STORE);
+        const sequenceKey = `kot_sequence_${orderType || 'GENERAL'}`;
+        const req = store.get(sequenceKey);
+
+        req.onsuccess = () => {
+            let nextKot = 1;
+            if (req.result) {
+                nextKot = (req.result.value || 0) + 1;
+            }
+            resolve(nextKot);
+        };
+        req.onerror = () => reject(req.error);
+    });
+};
+
 export const getSoldOutTracking = async () => {
     const db = await openDB();
     return new Promise((resolve) => {
