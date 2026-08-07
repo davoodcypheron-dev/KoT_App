@@ -8,7 +8,7 @@ import {
    Layout as TableIcon, CreditCard, Banknote, Smartphone,
    BookOpen, Gift, Layers, Wallet, MapPin, Phone, Landmark, Ticket, AlertCircle, Trash
 } from 'lucide-react';
-import { groupsDb, organizersDb, itemsDb, authUsersDb, usersDb, deliveryAgentsDb, customersDb, ledgersDb, waitersDb, cookingInstructionsDb, initialConfig, offersDb } from '../data/mockDb';
+import { groupsDb, organizersDb, itemsDb, authUsersDb, usersDb, deliveryAgentsDb, customersDb, ledgersDb, waitersDb, cookingInstructionsDb, initialConfig, offersDb, tablesDb } from '../data/mockDb';
 import {
    getAllAddons, getAllProducts, saveAddon, saveProduct,
    getAllItemAddonLinks, getOrderByTable, generateKotNo, getSoldOutTracking, decrementTrackedItemQuants,
@@ -256,6 +256,13 @@ const KotPage = () => {
        }
     }, [config.defaultKotType, selectedTable, navigate, location.state, isLoadingOrder]);
 
+    // Clear route state only after context selectedTable orderId matches state orderId
+    useEffect(() => {
+       if (selectedTable?.orderId && location.state?.orderId && String(selectedTable.orderId) === String(location.state.orderId)) {
+          navigate(location.pathname, { replace: true, state: {} });
+       }
+    }, [selectedTable?.orderId, location.state?.orderId, navigate, location.pathname]);
+
     // Handle auto-settling / loading orders from routing state
     useEffect(() => {
        if ((location.state?.autoSettle || location.state?.loadOrder) && location.state?.orderId) {
@@ -267,7 +274,7 @@ const KotPage = () => {
              try {
                 const ord = await getOrderById(orderId);
                 if (ord) {
-                   const tableObj = ord.tableId ? tablesDb.find(t => t.id === ord.tableId) : { id: 'TA', type: ord.type };
+                   const tableObj = ord.tableId ? (tablesDb.find(t => String(t.id) === String(ord.tableId)) || { id: ord.tableId, type: ord.type }) : { id: 'TA', type: ord.type };
                    await setSelectedTable(tableObj, ord.pax || 1, ord.id);
                    
                    if (autoSettle) {
@@ -275,16 +282,15 @@ const KotPage = () => {
                       setShowSettlementModal(true);
                    }
                 }
-             } catch (e) {
-                console.error("Auto settle/load order failed:", e);
+              } catch (e) {
+                 console.error("Auto settle/load order failed:", e);
+                 notify(`Load failed: ${e.message}`, 'error');
              } finally {
                 setIsLoadingOrder(false);
              }
           };
 
           loadAndSettle();
-          // Clear route state immediately to avoid repeated triggers
-          navigate(location.pathname, { replace: true, state: {} });
        }
     }, [location.state?.orderId, location.state?.autoSettle, navigate, location.pathname, setSelectedTable]);
 

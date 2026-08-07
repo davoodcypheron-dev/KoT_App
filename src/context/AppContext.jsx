@@ -58,7 +58,7 @@ export const AppProvider = ({ children }) => {
 
     if (activeOrder) {
       if (activeOrder.tableId) {
-        finalTable = tablesDb.find(t => t.id === activeOrder.tableId) || { id: activeOrder.tableId, type: 'DI' };
+        finalTable = tablesDb.find(t => String(t.id) === String(activeOrder.tableId)) || { id: activeOrder.tableId, type: 'DI' };
       }
       finalPax = activeOrder.pax || 1;
       finalType = activeOrder.type;

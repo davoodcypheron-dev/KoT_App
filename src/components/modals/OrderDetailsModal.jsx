@@ -6,7 +6,7 @@ import { customersDb, floorsDb, tablesDb } from '../../data/mockDb';
 const OrderDetailsModal = ({ order, onClose, onSelect, onSettle, onPrint, config }) => {
   if (!order) return null;
   const customerName = customersDb.find(c => c.id === order.customerId)?.name || 'Walk-in Customer';
-  const floorName = order.tableId ? (floorsDb.find(f => f.id === tablesDb.find(t => t.id === order.tableId)?.floor)?.name || '') : '';
+  const floorName = order.tableId ? (floorsDb.find(f => f.id === tablesDb.find(t => String(t.id) === String(order.tableId))?.floor)?.name || '') : '';
   const tableName = order.tableId ? `${floorName} / T-${order.tableId}` : (order.type === 'TA' ? 'Take Away' : (order.type === 'DE' ? 'Home Delivery' : 'Dine In (Self Service)'));
   const uStatus = (order.status || 'RUNNING').toUpperCase();
   const isRunning = uStatus === 'RUNNING' || uStatus === 'MERGED' || uStatus === 'ACTIVE';
@@ -58,7 +58,7 @@ const OrderDetailsModal = ({ order, onClose, onSelect, onSettle, onPrint, config
           </div>
           <div className="flex justify-between py-2 items-end">
             <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Grand Total</span>
-            <span className="text-3xl font-black text-slate-800 tracking-tighter">{config.currencySymbol}{(order.grandTotal || order.subTotal || 0).toFixed(2)}</span>
+            <span className="text-3xl font-black text-slate-800 tracking-tighter">{config.currencySymbol}{(order.grandTotal || order.total || order.subTotal || 0).toFixed(2)}</span>
           </div>
         </div>
 

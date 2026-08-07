@@ -100,11 +100,64 @@ const TopPanel = ({ onRefresh, onSettleOrder, onPrintOrder }) => {
     }
   };
 
-  const handleKotSearch = (e) => {
+  const handleKotSearch = async (e) => {
     if (e.key === 'Enter' && kotNo) {
-      notify(`Opening KOT #${kotNo}`, 'success');
-      navigate('/kot');
-      setKotNo('');
+      try {
+        if (kotNo.trim().toUpperCase() === 'DIAGNOSE') {
+          const orders = await getAllFromStore(ORDERS_STORE);
+          const diag = orders.map(o => `${o.type || 'DI'}:${o.latestKotNo || o.kotNo || 0}:${o.status || 'unknown'}:${o.id}`).join('\n');
+          alert(diag || "No orders in IndexedDB");
+          setKotNo('');
+          return;
+        }
+
+        const searchVal = kotNo.trim().toUpperCase();
+        let type = null;
+        let numStr = '';
+
+        if (searchVal.startsWith('DI')) {
+          type = 'DI';
+          numStr = searchVal.slice(2);
+        } else if (searchVal.startsWith('TA')) {
+          type = 'TA';
+          numStr = searchVal.slice(2);
+        } else if (searchVal.startsWith('DE')) {
+          type = 'DE';
+          numStr = searchVal.slice(2);
+        }
+
+        const kotNum = parseInt(numStr, 10);
+        if (!type || isNaN(kotNum)) {
+          notify('Invalid KOT format. Use DI12, TA12, or DE12.', 'error');
+          return;
+        }
+
+        const orders = await getAllFromStore(ORDERS_STORE);
+        const matched = orders.find(o => {
+          const orderType = (o.type || 'DI').toUpperCase();
+          const orderKot = o.latestKotNo || o.kotNo || 0;
+          return orderType === type && Number(orderKot) === Number(kotNum);
+        });
+
+        if (!matched) {
+          notify(`KOT #${searchVal} not found`, 'error');
+          return;
+        }
+
+        setKotNo('');
+        const status = matched.status?.toLowerCase();
+        if (status === 'settled') {
+          onPrintOrder(matched);
+        } else if (status === 'saved' || status === 'billed') {
+          onSettleOrder(matched);
+        } else {
+          notify(`Loading KOT #${searchVal}`, 'success');
+          navigate('/kot', { state: { loadOrder: true, orderId: matched.id } });
+        }
+      } catch (err) {
+        console.error("KOT search error:", err);
+        notify("Search failed", "error");
+      }
     }
   };
 
@@ -343,7 +396,7 @@ const Layout = ({ children, onRefresh, isSyncing }) => {
 
   const globalSettleTableObj = globalSettleOrder
     ? {
-        ...(globalSettleOrder.tableId ? tablesDb.find(t => t.id === globalSettleOrder.tableId) : { id: 'TA', type: globalSettleOrder.type }),
+        ...(globalSettleOrder.tableId ? tablesDb.find(t => String(t.id) === String(globalSettleOrder.tableId)) : { id: 'TA', type: globalSettleOrder.type }),
         orderId: globalSettleOrder.id
       }
     : null;
@@ -368,7 +421,7 @@ const Layout = ({ children, onRefresh, isSyncing }) => {
           key={`global-settle-${globalSettleOrder.id}`}
           type="settle"
           table={globalSettleTableObj}
-          total={globalSettleOrder.grandTotal}
+          total={globalSettleOrder.grandTotal || globalSettleOrder.total || globalSettleOrder.subTotal || 0}
           onClose={() => setGlobalSettleOrder(null)}
           onProcess={handleGlobalSettlementProcess}
           orderType={globalSettleOrder.type}
