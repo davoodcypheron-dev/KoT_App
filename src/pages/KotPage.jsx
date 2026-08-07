@@ -27,10 +27,12 @@ import VoidItemModal from '../components/modals/VoidItemModal';
 import AuthorizerModal from '../components/modals/AuthorizerModal';
 import DeliveryAgentModal from '../components/modals/DeliveryAgentModal';
 import PrintBillModal from '../components/modals/PrintBillModal';
+import TableSelectionModal from '../components/modals/TableSelectionModal';
 
 const KotPage = () => {
    const {
       config, setConfig, cart, setCart, selectedTable, setSelectedTable,
+      changeTableOnly,
       pax, setPax, selectedCustomer, setSelectedCustomer,
       orderNotes, setOrderNotes, notify, deliveryAgent, setDeliveryAgent,
       selectedWaiter, setSelectedWaiter, clearCurrentOrder
@@ -55,6 +57,7 @@ const KotPage = () => {
    const [showCustomerModal, setShowCustomerModal] = useState(false);
    const [showNotesModal, setShowNotesModal] = useState(false);
    const [showTableConfirm, setShowTableConfirm] = useState(false);
+   const [showTableSelectModal, setShowTableSelectModal] = useState(false);
    const [showVoidConfirm, setShowVoidConfirm] = useState(false);
    const [isSavingKOT, setIsSavingKOT] = useState(false);
    const [showDiscountAuth, setShowDiscountAuth] = useState(false);
@@ -64,6 +67,7 @@ const KotPage = () => {
    const [orderDiscount, setOrderDiscount] = useState({ type: 'percentage', value: 0, amount: 0, percentage: 0 });
    const [showSettlementModal, setShowSettlementModal] = useState(false);
    const [settlementType, setSettlementType] = useState('save'); // 'save' or 'settle'
+   const [isLoadingOrder, setIsLoadingOrder] = useState(false);
    const [totalVisible, setTotalVisible] = useState(true);
    const [showBreakdown, setShowBreakdown] = useState(false);
    const [orderDiscountAuthUser, setOrderDiscountAuthUser] = useState(null);
@@ -242,12 +246,47 @@ const KotPage = () => {
       setPaxInput(pax.toString());
    }, [pax, showPaxModal]);
 
-   // Redirect to table selection if Dine-In and no table is selected
-   useEffect(() => {
-      if (config.defaultKotType === 'DI' && !selectedTable) {
-         navigate('/tables');
-      }
-   }, [config.defaultKotType, selectedTable, navigate]);
+    // Redirect to table selection if Dine-In and no table is selected
+    useEffect(() => {
+       if (location.state?.orderId || location.state?.autoSettle || location.state?.loadOrder || isLoadingOrder) {
+          return;
+       }
+       if (config.defaultKotType === 'DI' && !selectedTable) {
+          navigate('/tables');
+       }
+    }, [config.defaultKotType, selectedTable, navigate, location.state, isLoadingOrder]);
+
+    // Handle auto-settling / loading orders from routing state
+    useEffect(() => {
+       if ((location.state?.autoSettle || location.state?.loadOrder) && location.state?.orderId) {
+          const orderId = location.state.orderId;
+          const autoSettle = location.state.autoSettle;
+
+          const loadAndSettle = async () => {
+             setIsLoadingOrder(true);
+             try {
+                const ord = await getOrderById(orderId);
+                if (ord) {
+                   const tableObj = ord.tableId ? tablesDb.find(t => t.id === ord.tableId) : { id: 'TA', type: ord.type };
+                   await setSelectedTable(tableObj, ord.pax || 1, ord.id);
+                   
+                   if (autoSettle) {
+                      setSettlementType('settle');
+                      setShowSettlementModal(true);
+                   }
+                }
+             } catch (e) {
+                console.error("Auto settle/load order failed:", e);
+             } finally {
+                setIsLoadingOrder(false);
+             }
+          };
+
+          loadAndSettle();
+          // Clear route state immediately to avoid repeated triggers
+          navigate(location.pathname, { replace: true, state: {} });
+       }
+    }, [location.state?.orderId, location.state?.autoSettle, navigate, location.pathname, setSelectedTable]);
 
    // Sync modal states when opening showExtrasModal
    useEffect(() => {
@@ -718,11 +757,13 @@ const KotPage = () => {
    };
 
    const handleTableChangeRequest = () => {
-      if (cart.length > 0) {
-         setShowTableConfirm(true);
-      } else {
-         navigate('/tables');
-      }
+      setShowTableSelectModal(true);
+   };
+
+   const handleSelectTableFromModal = async (newTable) => {
+      await changeTableOnly(newTable);
+      setShowTableSelectModal(false);
+      notify(`Switched to Table ${newTable.id}`, 'success');
    };
 
    // Group movement logic
@@ -2095,6 +2136,15 @@ const KotPage = () => {
                />
             )}
 
+
+            {showTableSelectModal && (
+               <TableSelectionModal
+                  isOpen={showTableSelectModal}
+                  onClose={() => setShowTableSelectModal(false)}
+                  currentTable={selectedTable}
+                  onSelectTable={handleSelectTableFromModal}
+               />
+            )}
 
             {showTableConfirm && (
                <ConfirmationModal

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initialConfig, defaultConfig, waitersDb, itemsDb, customersDb, tablesDb, deliveryAgentsDb, usersDb } from '../data/mockDb';
-import { getOrderByTable, getOrderItems, getAllFromStore, ORDERS_STORE, getCustomerById, getAllProducts, getOrderItemAddons, getAllAddons } from '../data/idb';
+import { getOrderByTable, getOrderItems, getAllFromStore, ORDERS_STORE, getCustomerById, getAllProducts, getOrderItemAddons, getAllAddons, getOrderById, saveToStore } from '../data/idb';
 
 const AppContext = createContext();
 
@@ -192,6 +192,25 @@ export const AppProvider = ({ children }) => {
     setSelectedWaiter(null);
   };
 
+  const changeTableOnly = async (newTable) => {
+    if (selectedTable?.orderId) {
+      try {
+        const order = await getOrderById(selectedTable.orderId);
+        if (order) {
+          order.tableId = newTable.id;
+          order.parentTableId = newTable.id.toString().split('-')[0];
+          await saveToStore(ORDERS_STORE, order);
+        }
+      } catch (e) {
+        console.error("Failed to update table in order:", e);
+      }
+    }
+    setSelectedTableState(prev => ({
+      ...newTable,
+      orderId: prev?.orderId || null
+    }));
+  };
+
   useEffect(() => {
     localStorage.setItem('kot_app_config', JSON.stringify(config));
   }, [config]);
@@ -203,6 +222,7 @@ export const AppProvider = ({ children }) => {
       resetConfig: () => setConfig(defaultConfig),
       cart, setCart,
       selectedTable, setSelectedTable: handleTableSelection,
+      changeTableOnly,
       soldOutItems, setSoldOutItems,
       notifications, notify,
       waiters: waitersDb, selectedWaiter, setSelectedWaiter,

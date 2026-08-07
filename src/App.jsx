@@ -16,7 +16,11 @@ import ItemAddonMaster from './pages/ItemAddonMaster';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import BookingsPage from './pages/BookingsPage';
 import BookingNotification from './components/modals/BookingNotification';
-import { getAllBookings, updateBookingStatus, BOOKINGS_STORE, TABLES_STORE, ORDERS_STORE, getAllFromStore, saveBooking } from './data/idb';
+import { getAllBookings, updateBookingStatus, BOOKINGS_STORE, TABLES_STORE, ORDERS_STORE, getAllFromStore, saveBooking, getOrderById, saveToStore } from './data/idb';
+import SettlementModal from './components/modals/SettlementModal';
+import OrderDetailsModal from './components/modals/OrderDetailsModal';
+import QrScanModal from './components/modals/QrScanModal';
+import { tablesDb } from './data/mockDb';
 
 import LoginPage from './pages/LoginPage';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -28,19 +32,71 @@ import {
 import { initialConfig } from './data/mockDb';
 import DeliverySummaryPage from './pages/DeliverySummaryPage';
 
-const TopPanel = ({ onRefresh }) => {
+const TopPanel = ({ onRefresh, onSettleOrder, onPrintOrder }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { config, setConfig, clearCurrentOrder, notify } = useApp();
   const [billNo, setBillNo] = useState('');
   const [kotNo, setKotNo] = useState('');
-  const qrInputRef = React.useRef(null);
+  const [showQrScan, setShowQrScan] = useState(false);
 
-  const handleBillSearch = (e) => {
+  const handleBillSearch = async (e) => {
     if (e.key === 'Enter' && billNo) {
-      notify(`Opening Bill #${billNo}`, 'success');
-      navigate('/kot');
-      setBillNo('');
+      try {
+        const orders = await getAllFromStore(ORDERS_STORE);
+        const val = billNo.trim().toLowerCase();
+        const matched = orders.find(o => {
+          const invNo = (o.invoiceNo || o.invoice || '').toLowerCase();
+          const orderId = (o.id || '').toLowerCase();
+          const bNo = (o.billNo || '').toString();
+          return invNo === val || invNo.endsWith(val) || orderId === val || bNo === val;
+        });
+
+        if (!matched) {
+          notify(`Bill #${billNo} not found`, 'error');
+          return;
+        }
+
+        setBillNo('');
+        const displayInvoice = matched.invoiceNo || matched.invoice || matched.billNo || matched.id;
+        if (matched.status?.toLowerCase() === 'settled') {
+          onPrintOrder(matched);
+        } else {
+          onSettleOrder(matched);
+        }
+      } catch (err) {
+        console.error("Bill search error:", err);
+        notify("Search failed", "error");
+      }
+    }
+  };
+
+  const handleQrScanSuccess = async (scannedVal) => {
+    setShowQrScan(false);
+    try {
+      const orders = await getAllFromStore(ORDERS_STORE);
+      const val = scannedVal.trim().toLowerCase();
+      const matched = orders.find(o => {
+        const invNo = (o.invoiceNo || o.invoice || '').toLowerCase();
+        const orderId = (o.id || '').toLowerCase();
+        const bNo = (o.billNo || '').toString();
+        return invNo === val || invNo.endsWith(val) || orderId === val || bNo === val;
+      });
+
+      if (!matched) {
+        notify(`Bill #${scannedVal} not found`, 'error');
+        return;
+      }
+
+      const displayInvoice = matched.invoiceNo || matched.invoice || matched.billNo || matched.id;
+      if (matched.status?.toLowerCase() === 'settled') {
+        onPrintOrder(matched);
+      } else {
+        onSettleOrder(matched);
+      }
+    } catch (err) {
+      console.error("QR Scan search error:", err);
+      notify("Search failed", "error");
     }
   };
 
@@ -80,31 +136,8 @@ const TopPanel = ({ onRefresh }) => {
     setConfig(prev => ({ ...prev, defaultKotType: null }));
   };
 
-  const handleQrFocus = () => {
-    if (qrInputRef.current) {
-      qrInputRef.current.value = '';
-      qrInputRef.current.focus();
-      notify('Scanner Focused', 'success');
-    }
-  };
-
   return (
     <div className="h-16 bg-white flex items-center px-4 gap-2 shrink-0 shadow-sm z-[150] border-b border-slate-200">
-      {/* Scanner Hidden Input */}
-      <input
-        ref={qrInputRef}
-        type="text"
-        className="absolute opacity-0 pointer-events-none"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            const val = e.target.value.trim();
-            if (val) {
-              notify(`Scanned: ${val}`, 'success');
-              e.target.value = '';
-            }
-          }
-        }}
-      />
 
       {/* New Button */}
       <button onClick={handleNewOrder} className="h-11 px-6 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 shadow-m shadow-emerald-100">
@@ -178,7 +211,7 @@ const TopPanel = ({ onRefresh }) => {
       {/* Order Type Controls */}
       <div className="flex gap-1 h-11 items-center">
         <div className="h-8 w-[1px] bg-slate-200 mx-2" />
-        <button onClick={handleQrFocus} className="h-11 w-11 bg-slate-50 text-slate-500 rounded-xl flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 transition-all group border border-slate-100">
+        <button onClick={() => setShowQrScan(true)} className="h-11 w-11 bg-slate-50 text-slate-500 rounded-xl flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 transition-all group border border-slate-100">
           <QrCode size={20} className="group-active:scale-90" />
         </button>
         <div className="h-8 w-[1px] bg-slate-200 mx-2 mr-3" />
@@ -212,6 +245,14 @@ const TopPanel = ({ onRefresh }) => {
       >
         <RefreshCw size={18} />
       </button>
+
+      {showQrScan && (
+        <QrScanModal
+          isOpen={showQrScan}
+          onClose={() => setShowQrScan(false)}
+          onScanSuccess={handleQrScanSuccess}
+        />
+      )}
     </div>
   );
 };
@@ -264,24 +305,87 @@ const NotificationOverlay = () => {
 };
 
 const Layout = ({ children, onRefresh, isSyncing }) => {
-  const { config } = useApp();
+  const { config, notify } = useApp();
   const location = useLocation();
   const hideNavPaths = ['/product-choice-master', '/addon-master', '/item-addon-master', '/configpage', '/login'];
   const shouldHideNav = hideNavPaths.includes(location.pathname.toLowerCase());
+
+  const [globalSettleOrder, setGlobalSettleOrder] = useState(null);
+  const [globalPrintOrder, setGlobalPrintOrder] = useState(null);
 
   if (!config.activeUserId && location.pathname !== '/login') {
     return <Navigate to="/login" replace />;
   }
 
+  const handleGlobalSettlementProcess = async (msg, paymentData) => {
+    try {
+      const activeOrder = await getOrderById(globalSettleOrder.id);
+      if (!activeOrder) return;
+
+      const isNC = paymentData?.method === 'NC';
+      activeOrder.status = 'settled';
+      activeOrder.settleTime = new Date().toISOString();
+      activeOrder.payType = isNC ? 'NC' : (paymentData ? (paymentData.isMulti ? 'MULTI' : paymentData.method) : null);
+      if (isNC) {
+        activeOrder.discount = (activeOrder.subTotal || 0) + (activeOrder.taxes || 0);
+        activeOrder.grandTotal = 0;
+      }
+
+      await saveToStore(ORDERS_STORE, activeOrder);
+      notify('Bill Settled successfully', 'success');
+      setGlobalSettleOrder(null);
+      setGlobalPrintOrder(activeOrder);
+    } catch (e) {
+      console.error(e);
+      notify('Failed to process settlement', 'error');
+    }
+  };
+
+  const globalSettleTableObj = globalSettleOrder
+    ? {
+        ...(globalSettleOrder.tableId ? tablesDb.find(t => t.id === globalSettleOrder.tableId) : { id: 'TA', type: globalSettleOrder.type }),
+        orderId: globalSettleOrder.id
+      }
+    : null;
+
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden h-screen bg-[#fdf2f2]">
-      {!shouldHideNav && <TopPanel onRefresh={onRefresh} />}
+      {!shouldHideNav && (
+        <TopPanel
+          onRefresh={onRefresh}
+          onSettleOrder={setGlobalSettleOrder}
+          onPrintOrder={setGlobalPrintOrder}
+        />
+      )}
       <SyncLoader isVisible={isSyncing} />
       <NotificationOverlay />
-      {/* <BookingNotification /> */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {children}
       </div>
+
+      {globalSettleOrder && (
+        <SettlementModal
+          key={`global-settle-${globalSettleOrder.id}`}
+          type="settle"
+          table={globalSettleTableObj}
+          total={globalSettleOrder.grandTotal}
+          onClose={() => setGlobalSettleOrder(null)}
+          onProcess={handleGlobalSettlementProcess}
+          orderType={globalSettleOrder.type}
+        />
+      )}
+
+      {globalPrintOrder && (
+        <OrderDetailsModal
+          key={`global-details-${globalPrintOrder.id}`}
+          order={globalPrintOrder}
+          onClose={() => setGlobalPrintOrder(null)}
+          onPrint={(order) => {
+            notify("Printing Receipt...", 'info');
+          }}
+          config={config}
+        />
+      )}
     </div>
   );
 };
