@@ -32,6 +32,7 @@ const TablesPage = () => {
   const [showReservationModal, setShowReservationModal] = useState(null);
   const [waiterPin, setWaiterPin] = useState('');
   const [showAuthForResvCancel, setShowAuthForResvCancel] = useState(false);
+  const [selectedFloor, setSelectedFloor] = useState('ALL');
 
   // Load Active IDB Dine-In Orders
   React.useEffect(() => {
@@ -130,6 +131,11 @@ const TablesPage = () => {
   }, [liveOrders]);
 
   const floors = floorsDb;
+
+  const visibleFloors = React.useMemo(() => {
+    if (selectedFloor === 'ALL') return floors;
+    return floors.filter(f => f.id === selectedFloor);
+  }, [floors, selectedFloor]);
 
   const handleTableClick = async (table, isView = false) => {
     // Check against real IDB orders mapping to this table
@@ -230,11 +236,40 @@ const TablesPage = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-[#fdf2f2] overflow-hidden p-1.5">
-      {/* Legend / Status Bar */}
-      <div className="bg-[#fcf5d5] rounded-t-xl border border-gray-200 p-2.5 flex justify-between items-center text-[10px] uppercase font-black text-slate-500 shrink-0 shadow-sm">
+      {/* Legend / Status & Floor Filter Bar */}
+      <div className="bg-[#fcf5d5] rounded-t-xl border border-gray-200 p-2 flex flex-wrap justify-between items-center gap-3 text-[10px] uppercase font-black text-slate-500 shrink-0 shadow-sm">
+        {/* Floor Selector Tabs */}
+        <div className="flex items-center gap-1 bg-white/90 p-1 rounded-xl border border-slate-200 shadow-xs">
+          <button
+            type="button"
+            onClick={() => setSelectedFloor('ALL')}
+            className={`px-3.5 h-8 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              selectedFloor === 'ALL'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            ALL FLOORS
+          </button>
+          {floors.map(floor => (
+            <button
+              type="button"
+              key={floor.id}
+              onClick={() => setSelectedFloor(floor.id)}
+              className={`px-3.5 h-8 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                selectedFloor === floor.id
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              {floor.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Legend */}
         <div className="flex items-center gap-4">
-          <span className="flex items-center gap-2">Floor Selection</span>
-          <div className="flex gap-4 border-l border-slate-300 pl-4">
+          <div className="flex gap-4 border-l border-slate-300/80 pl-4">
             <div className="flex items-center gap-2"><span className="w-3.5 h-3.5 rounded bg-white border border-slate-300"></span> Vacant</div>
             <div className="flex items-center gap-2"><span className="w-3.5 h-3.5 rounded bg-[#fde68a] border border-yellow-400"></span> Running</div>
             <div className="flex items-center gap-2"><span className="w-3.5 h-3.5 rounded bg-[#bbf7d0] border border-green-400"></span> Billed</div>
@@ -247,7 +282,7 @@ const TablesPage = () => {
         {/* Table Grid (scrollable) */}
         <div className="flex-1 bg-[#f0f9ff] border border-slate-200 rounded-bl-xl p-6 overflow-y-auto custom-scrollbar relative shadow-inner">
           <div className="max-w-[1400px] mx-auto space-y-12">
-            {floors.map(floor => (
+            {visibleFloors.map(floor => (
               <div key={floor.id}>
                 <div className="flex items-center gap-4 mb-6">
                   <h3 className="text-[#1e56a0] font-black text-xs uppercase tracking-[0.2em]">{floor.name}</h3>

@@ -486,29 +486,37 @@ const KotPage = () => {
       if (item) item.scrollIntoView({ block: 'nearest' });
    };
 
+   const handleAddSearchedItemToCart = () => {
+      let itemToAdd = selectedSearchItem;
+      if (!itemToAdd && suggestedItems.length > 0) {
+         itemToAdd = suggestedItems[0];
+      }
+      if (!itemToAdd) {
+         notify('Please select an item first', 'warning');
+         return;
+      }
+      const qty = parseInt(searchQty) || 1;
+      if (isNaN(qty) || qty <= 0) {
+         notify('Please enter a valid quantity', 'error');
+         return;
+      }
+
+      addToCart(itemToAdd, qty);
+
+      setSelectedSearchItem(null);
+      setSearchTerm('');
+      setSearchQty('');
+
+      setTimeout(() => {
+         if (searchInputRef.current) {
+            searchInputRef.current.focus();
+         }
+      }, 50);
+   };
+
    const handleQtyKeyDown = (e) => {
       if (e.key === 'Enter') {
-         if (!selectedSearchItem) {
-            notify('Please select an item first', 'warning');
-            return;
-         }
-         const qty = parseInt(searchQty);
-         if (isNaN(qty) || qty <= 0) {
-            notify('Please enter a valid quantity', 'error');
-            return;
-         }
-
-         addToCart(selectedSearchItem, qty);
-
-         setSelectedSearchItem(null);
-         setSearchTerm('');
-         setSearchQty('');
-
-         setTimeout(() => {
-            if (searchInputRef.current) {
-               searchInputRef.current.focus();
-            }
-         }, 50);
+         handleAddSearchedItemToCart();
       }
    };
 
@@ -1564,6 +1572,15 @@ const KotPage = () => {
                            placeholder="Qty"
                            className="w-16 bg-[#f8fafc] border border-slate-100 rounded-xl h-11 text-center font-black text-slate-700 outline-none focus:bg-white focus:border-blue-300 transition-all text-sm shadow-inner"
                         />
+                        <button
+                           type="button"
+                           onClick={handleAddSearchedItemToCart}
+                           disabled={isBilled}
+                           title="Add to Cart"
+                           className="h-11 px-3.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-black text-sm flex items-center justify-center shadow-md shadow-blue-200 active:scale-95 transition-all shrink-0 cursor-pointer"
+                        >
+                           <Plus size={18} strokeWidth={3} />
+                        </button>
                      </div>
 
                      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
